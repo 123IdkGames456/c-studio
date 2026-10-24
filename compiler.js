@@ -230,7 +230,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    const dimensions=elementType==="Vector2"?2:3;
    const vectorType=dimensions===2?"Vector2":"Vector3";
    const toPosition=(expr,type)=>{
-    if(type==="GameObject")return "("+expr+").transform.position";
+    if(type==="GameObject")return dimensions===2?"new Vector2(("+expr+").transform.position.x, ("+expr+").transform.position.y)":"("+expr+").transform.position";
     if(type==="Vector2"&&dimensions===3)return "new Vector3(("+expr+").x, ("+expr+").y, 0f)";
     if(type==="Vector3"&&dimensions===2)return "new Vector2(("+expr+").x, ("+expr+").y)";
     return expr;
