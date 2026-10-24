@@ -186,3 +186,15 @@ button:active{transform:translateY(1px)}
 .variables-panel .variable-list{margin-top:11px}
 @media(max-width:1050px){.variables-panel{right:14px;top:105px}}
 @media(max-width:650px){.variables-panel{right:8px;top:145px;width:min(310px,calc(100vw - 16px));max-height:calc(100dvh - 160px)}}
+
+
+/* C# import progress overlay */
+.import-progress{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:20px;background:#080b12e8;backdrop-filter:blur(12px)}
+.import-progress-card{width:min(440px,100%);padding:27px;border:1px solid #3d4e70;border-radius:18px;background:linear-gradient(145deg,#192338,#101620);box-shadow:0 28px 100px #000b;text-align:center}
+.import-progress-mark{display:grid;place-items:center;width:52px;height:52px;margin:0 auto 15px;border:1px solid #627ab7;border-radius:15px;background:#263653;color:#b7c8ff;font-size:28px}
+.import-progress-card>strong{display:block;font-size:18px;color:#f1f5ff}
+.import-progress-card>p{margin:9px 0 17px;color:#9dacc5;font-size:12px;line-height:1.5}
+.import-progress-track{height:9px;overflow:hidden;border:1px solid #34415a;border-radius:99px;background:#0a101a}
+.import-progress-track span{display:block;width:0;height:100%;border-radius:99px;background:linear-gradient(90deg,#6e8ff5,#79e0c2);box-shadow:0 0 18px #789aff66;transition:width .12s ease}
+.import-progress-numbers{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:#e0e8ff;font-size:12px;font-variant-numeric:tabular-nums}
+.import-progress-sub{margin-bottom:0!important;font-size:10px!important;color:#8292ad!important}
