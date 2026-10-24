@@ -175,7 +175,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(!to||to==="dynamic"||to==="any"||to==="number"||to==="object"||from===to||from==="dynamic"||from==="any")return expr;
   if(from==="null"&&(to==="string"||to==="object"||!BlueprintTypes.isValue(to)))return expr;
   if(numericTypes.has(from)&&numericTypes.has(to))return convertNumeric(expr,from,to);
-  if(BlueprintTypes.compatible(from,to))return expr;
+  if((from==="object"||from==="UnityEngine.Object")&&(to==="UnityEngine.Object"||BlueprintTypes.unity.includes(to)&&!BlueprintTypes.isValue(to)))return "("+expr+" as "+to+")";
+   if(to==="UnityEngine.Object"&&BlueprintTypes.unity.includes(from)&&!BlueprintTypes.isValue(from))return expr;
+   if(BlueprintTypes.compatible(from,to))return expr;
   if(to==="Component"&&BlueprintTypes.unity.includes(from))return expr;
   report("Type mismatch: "+from+" cannot be used as "+to+(n?" on "+n.type:"")+".");
   return typedDefault(to);
