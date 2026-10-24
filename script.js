@@ -558,9 +558,9 @@ function loadState(s){if(!s||!Array.isArray(s.nodes))return;variables=s.variable
 
 const templates=[
  {id:"rotate",name:"Rotating Cube",description:"Rotate the object smoothly around its Y axis.",build(){
-  addVariable({name:"RotationSpeed",type:"float",access:"private-inspector",initial:"45f"});
-  const ev=addNode("update",70,90),action=addNode("transform",360,90,{operation:"rotate"}),v=addNode("vector",70,300,{vectorType:"Vector3",x:"0",y:"45",z:"0",w:"0"});
-  links.push({from:ev.id,fromPin:"Then",to:action.id,toPin:"Exec",kind:"flow"},{from:v.id,fromPin:"value",to:action.id,toPin:"vector",kind:"data"});
+  const speed=addVariable({name:"RotationSpeed",type:"float",access:"private-inspector",initial:"45f"});
+  const ev=addNode("update",70,90),action=addNode("transform",360,90,{operation:"rotate"}),v=addNode("vector",70,300,{vectorType:"Vector3",x:"0",y:"0",z:"0",w:"0"}),getSpeed=addNode("getvar",70,480,{variable:speed.id});
+  links.push({from:ev.id,fromPin:"Then",to:action.id,toPin:"Exec",kind:"flow"},{from:v.id,fromPin:"value",to:action.id,toPin:"vector",kind:"data"},{from:getSpeed.id,fromPin:"value",to:v.id,toPin:"y",kind:"data"});
  }},
  {id:"float",name:"Floating Item",description:"Starter graph with adjustable height and speed variables.",build(){
   addVariable({name:"FloatHeight",type:"float",access:"private-inspector",initial:"0.5f"});
