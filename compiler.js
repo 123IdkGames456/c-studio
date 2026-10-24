@@ -96,6 +96,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(n.type==="literal"&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values?.type))return n.values.type;
   if(n.type==="math")return n.values?.outputType||"float";
   if(n.type==="distance"||n.type==="distance2d")return "float";
+  if(n.type==="vectorsplit3"||n.type==="vectorsplit2")return "dynamic";
+  if(n.type==="vectorcombine3")return "Vector3";
+  if(n.type==="vectorcombine2")return "Vector2";
   if(n.type==="fromto")return n.values?.toType||"string";
   if(n.type==="vector")return n.values?.vectorType||"Vector3";
   if(n.type==="compare"||n.type==="logic"||n.type==="input")return "bool";
@@ -207,7 +210,19 @@ function compile(inputNodes,inputLinks,inputVars,className){
     const inputLink=dataLink(n.id,"component"),source=inputLink?findNode(inputLink.from):null,ct=source?.type==="getcomponent"?(source.values?.componentType||"Rigidbody"):source?.type==="getvar"?(findVar(source.values?.variable)?.type||"Component"):"Component";
     sourceType=propertyType(ct,prop);
     expression=ct==="Component"?"((dynamic)("+target+"))."+prop:"(("+ct+")("+target+"))."+prop;
-   }else if(n.type==="distance"||n.type==="distance2d"){
+   }else if(n.type==="vectorsplit3"||n.type==="vectorsplit2"){
+   const vectorType=n.type==="vectorsplit3"?"Vector3":"Vector2";
+   const vector=valueForInput(n,"vector",path,vectorType);
+   const axis=["x","y","z"].includes(outputPin)?outputPin:"x";
+   sourceType="float";
+   expression="("+vector+")."+axis;
+  }else if(n.type==="vectorcombine3"||n.type==="vectorcombine2"){
+   const is2D=n.type==="vectorcombine2";
+   const x=valueForInput(n,"x",path,"float"),y=valueForInput(n,"y",path,"float");
+   const args=is2D?[x,y]:[x,y,valueForInput(n,"z",path,"float")];
+   sourceType=is2D?"Vector2":"Vector3";
+   expression="new "+sourceType+"("+args.join(", ")+")";
+  }else if(n.type==="distance"||n.type==="distance2d"){
    const is2D=n.type==="distance2d";
    const a=distancePositionExpr(n,"a",path,is2D);
    const b=distancePositionExpr(n,"b",path,is2D);
