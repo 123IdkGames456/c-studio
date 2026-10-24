@@ -373,7 +373,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
     }
    }else if(n.type==="transform"){
     const op=n.values?.operation||"setPosition",v=valueForInput(n,"vector",new Set(),"Vector3");
-    const code={setPosition:"transform.position = "+v+";",translate:"transform.Translate("+v+");",setRotation:"transform.rotation = Quaternion.Euler("+v+");",setScale:"transform.localScale = "+v+";"};
+    const code={setPosition:"transform.position = "+v+";",translate:"transform.Translate("+v+" * Time.deltaTime);",rotate:"transform.Rotate("+v+" * Time.deltaTime);",setRotation:"transform.rotation = Quaternion.Euler("+v+");",setScale:"transform.localScale = "+v+";"};
     if(code[op])out.push(p+code[op]);
    }else if(n.type==="gameobject"){
     const target=valueForInput(n,"target",new Set(),"GameObject"),op=n.values?.operation||"setActive";
