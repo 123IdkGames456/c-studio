@@ -21,6 +21,7 @@ function connectedComponentType(n){
  return null;
 }
 function nodeInputs(n){
+ if(["listelement","listclosest","listfarthest"].includes(n?.type)){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:p.id==="index"?{...p,type:"int"}:{...p,type});}
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
  if(n?.type==="if")return (n.values?.branchMode||"Exec")==="Exec"?[{id:"condition",label:"Condition",type:"bool"}]:[{id:"condition",label:"Condition",type:"bool"},{id:"trueValue",label:"True",type:n.values.branchMode},{id:"falseValue",label:"False",type:n.values.branchMode}];
@@ -86,6 +87,7 @@ function componentPropertyType(component,property){
  return map[component]?.[property]||"object";
 }
 function actualOutputType(n){
+ if(["listelement","listclosest","listfarthest"].includes(n?.type))return n.values?.elementType||"GameObject";
  if(n?.type==="getfirsttag")return "GameObject";
  if(n?.type==="getalltag")return "List<GameObject>";
  if(n?.type==="if"){
@@ -118,6 +120,7 @@ function actualOutputType(n){
  return d?.valueOut||"dynamic";
 }
 function expectedInputType(n,p){
+ if(["listelement","listclosest","listfarthest"].includes(n.type)){const type=n.values?.elementType||"GameObject";if(p.id==="list")return "List<"+type+">";if(p.id==="index")return "int";if(p.id==="reference")return type;}
  if(!n||!p)return "dynamic";
  if(n.type==="if"&&["trueValue","falseValue"].includes(p.id))return n.values?.branchMode||"dynamic";
  if((n.type==="vectorsplit3"||n.type==="vectorsplit2")&&p.id==="vector")return n.type==="vectorsplit3"?"Vector3":"Vector2";
@@ -147,6 +150,7 @@ function displayInputType(n,p){
 }
 function typesCompatible(from,to){
  if(from==="none")return false;
+ if(/^List<.+>$/.test(from)&&/^List<.+>$/.test(to))return from===to;
  if(!from||!to||to==="dynamic"||to==="any")return true;
  if(from==="dynamic"||from==="any")return to==="dynamic"||to==="any";
  if((from==="object"||from==="UnityEngine.Object")&&(to==="UnityEngine.Object"||BlueprintTypes.unity.includes(to)&&!BlueprintTypes.isValue(to)))return true;if(to==="UnityEngine.Object"&&BlueprintTypes.unity.includes(from)&&!BlueprintTypes.isValue(from))return true;if(to==="Component"&&BlueprintTypes.unity.includes(from)&&!BlueprintTypes.isValue(from))return true;
