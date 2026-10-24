@@ -354,6 +354,12 @@ function compile(inputNodes,inputLinks,inputVars,className){
    const n=findNode(current);if(!n)break;
    const p="    ".repeat(indent);
    if(["start","update","fixed","comment"].includes(n.type)){}
+   else if(n.type==="functionstart"){break;}
+   else if(n.type==="callfunction"){
+    const fn=nodes.find(x=>x.type==="functionstart"&&String(x.id)===String(n.values?.functionId));
+    if(!fn)report("Choose a valid Function Entry node in Call Function.");
+    else out.push(p+safeIdentifier(fn.values?.name||"MyFunction","MyFunction",new Set())+"_"+fn.id+"();");
+   }
    else if(n.type==="setvar"){
     const v=findVar(n.values?.variable);
     if(!v)report("Choose a variable in Set Variable.");
