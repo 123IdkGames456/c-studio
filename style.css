@@ -227,3 +227,26 @@ button:active{transform:translateY(1px)}
 .server-preview{margin-top:10px;border:1px solid #2e3d55;border-radius:8px;background:#0b111b;overflow:hidden}
 .server-preview summary{padding:9px 10px;color:#bdcce4;font-size:11px;cursor:pointer}
 .server-preview pre{max-height:280px;overflow:auto;margin:0;padding:11px;border-top:1px solid #27354a;color:#c7e8d9;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Server publish password menu */
+.publish-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:18px;background:rgba(5,7,12,.78);backdrop-filter:blur(8px)}
+.publish-modal[hidden],.publish-loading[hidden]{display:none}
+.publish-card{width:min(440px,100%);border:1px solid #343b4e;border-radius:18px;padding:22px;background:#171b25;box-shadow:0 24px 90px #0009}
+.publish-heading{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.publish-heading>div:nth-child(2){flex:1;min-width:0}
+.publish-mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#28324c;color:var(--blue);font-size:22px}
+.publish-heading strong{font-size:16px}
+.publish-heading p,.publish-loading p{margin:5px 0 0;color:var(--muted);line-height:1.45}
+.publish-heading #publishClose{font-size:22px;padding:3px 10px}
+.publish-label{display:block;margin-bottom:7px;color:#c9d1e3;font-weight:700}
+#publishPassword{width:100%;padding:12px 13px;border-radius:9px;border:1px solid #394153;background:#10131a;color:var(--text);outline:none}
+#publishPassword:focus{border-color:var(--blue);box-shadow:0 0 0 3px #8aa3ff22}
+.publish-status{margin-top:12px;padding:10px 11px;border-radius:9px;background:#202532;color:#b9c3d8;line-height:1.45;min-height:40px}
+.publish-status.error{color:#ffabb6;background:#3b202a}
+.publish-status.success{color:#91edc7;background:#19352e}
+.publish-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.publish-actions button{min-width:88px}
+.publish-loading{display:flex;align-items:center;gap:13px;margin-top:14px;padding:14px;border-radius:10px;background:#202532}
+.publish-spinner{width:24px;height:24px;flex:none;border:3px solid #424b60;border-top-color:var(--blue);border-radius:50%;animation:publish-spin .75s linear infinite}
+@keyframes publish-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.publish-spinner{animation:none}}
