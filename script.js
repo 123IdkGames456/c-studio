@@ -623,23 +623,7 @@ async function importCSharp(source,fileName){
  for(const method of methods){
   const ev=spec(eventMap[method.name]||"start",70,baseY);
   let previous=ev, col=0;
-  const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?\s*=\s*[^;]+);/g)||[];
-  const featureChecks=[
-   [/\bif\s*\(/,"If / else branching"],
-   [/\b(?:for|foreach|while|do)\b/,"Loops (for / foreach / while / do)"],
-   [/\bswitch\s*\(/,"Switch statements"],
-   [/\breturn\b/,"Return statements and return values"],
-   [/\b(?:GetComponent|GetComponentInChildren|GetComponentInParent)\s*<|\bGetComponent\s*\(/,"Get Component calls"],
-   [/\b(?:Instantiate|Destroy|DestroyImmediate)\s*\(/,"Instantiate / Destroy object calls"],
-   [/\b(?:StartCoroutine|StopCoroutine)\s*\(/,"Coroutine calls"],
-   [/\b(?:Quaternion|Vector2|Vector3|Vector4|Color)\.(?:Euler|AngleAxis|Lerp|MoveTowards|zero|one|identity)\b/,"Unity vector / rotation utility expressions"],
-   [/\b(?:transform|gameObject)\.(?:rotation|localRotation|forward|right|up|parent|SetParent)\b/,"Transform rotation / direction / parent operations"],
-   [/(?:\+=|-=|\*=|\/=|\+\+|--)/,"Compound assignments and increment / decrement"],
-   [/\b(?:Input|Time|Physics|Mathf|Random)\./,"Unity Input / Time / Physics / Mathf / Random API calls"],
-   [/\b(?:try|catch|throw|yield|await|lock)\b/,"Exception handling / yield / async operations"],
-   [/\bnew\s+(?:List|Dictionary|HashSet)\s*</,"Collection creation and collection operations"]
-  ];
-  featureChecks.forEach(([re,label])=>{if(re.test(method.body))warnings.push("Needs a node or importer support: "+label+" (in "+method.name+")");});
+  const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*\s*=\s*[^;]+);/g)||[];
   for(const rawStatement of statements){
    const st=rawStatement.trim().replace(/;$/,"");
    const log=st.match(/^Debug\.(LogWarning|LogError|Log)\s*\(([\s\S]*)\)$/);
@@ -661,12 +645,12 @@ async function importCSharp(source,fileName){
    if(tr){
     const vals=tr[2].split(",").map(v=>v.trim());
     const vector=spec("vector",360+col*300,baseY,{vectorType:"Vector3",x:vals[0]||"0",y:vals[1]||"0",z:vals[2]||"0"});
-    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localScale"?"setScale":tr[1]==="localPosition"?"setLocalPosition":"setPosition"});
+    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localScale"?"setScale":"setPosition"});
     edge(previous,"Then",set,"Exec","flow");previous=set;col++;
     warnings.push("Converted a transform assignment to a Transform node; check its vector fields.");
     continue;
    }
-   const componentBool=st.match(/^(?:(?:this\.)?([A-Za-z_]\w*)\.)?(flipX|flipY)\s*=\s*(true|false)$/);\n   if(componentBool){\n    const component=spec("getcomponent",360+col*300,baseY+160,{componentType:"SpriteRenderer"});\n    const self=spec("self",100+col*300,baseY+160,{});edge(self,"value",component,"target");\n    const set=spec("setcomponent",610+col*300,baseY,{["use_"+componentBool[2]]:"true"});\n    edge(previous,"Then",set,"Exec","flow");edge(component,"value",set,"component");\n    const literal=spec("literal",360+col*300,baseY+340,{type:"bool",value:componentBool[3]});edge(literal,"value",set,componentBool[2]);previous=set;col++;continue;\n   }\n   const mathAssign=st.match(/^([A-Za-z_]\\w*)\\s*=\\s*(-?\\d+(?:\\.\\d+)?f?)\\s*([+*/%-])\\s*(-?\\d+(?:\\.\\d+)?f?)$/);
+   const mathAssign=st.match(/^([A-Za-z_]\w*)\s*=\s*(-?\d+(?:\.\d+)?f?)\s*([+*/%-])\s*(-?\d+(?:\.\d+)?f?)$/);
    if(mathAssign&&varMap.has(mathAssign[1])){
     const v=varMap.get(mathAssign[1]),typ=v.type==="int"?"int":"float",op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[mathAssign[3]];
     const a=spec("literal",360+col*300,baseY+180,{type:typ,value:mathAssign[2].replace(/f$/i,"")}),b=spec("literal",360+col*300,baseY+350,{type:typ,value:mathAssign[4].replace(/f$/i,"")});
@@ -737,53 +721,8 @@ async function importCSharp(source,fileName){
   renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});
   await new Promise(resolve=>setTimeout(resolve,220));overlay.remove();
   status("Imported C# · "+nodes.length+" nodes");
-  if(warnings.length)showImportReport([...new Set(warnings)],className);
+  if(warnings.length)alert("Import completed. Some code needs manual conversion or review:\n\n"+[...new Set(warnings)].slice(0,10).join("\n"));
  }catch(err){overlay.remove();renderAll();throw err;}
-}
-function explainImportWarning(item){
- const details=[
-  [/If \/ else branching/i, "The importer detected an if statement but has not converted its condition and true/false execution paths into a connected Branch node graph.", "The condition or one of its branches may be missing, so actions that depend on a condition may not behave like the original script.", "Create a Branch node, import the condition as a Boolean expression, and connect statements from each branch to the matching execution output."],
-  [/Unity Input \/ Time \/ Physics \/ Mathf \/ Random API calls/i, "The method uses Unity API calls from Input, Time, Physics, Mathf, or Random. This warning groups several APIs; it does not tell us which exact call failed.", "Key input, delta-time movement, physics queries, math functions, or random values may be missing from the generated graph.", "Inspect the original statements and map each exact call to a typed node with the correct inputs, output, and execution connections."],
-  [/Converted a transform assignment/i, "The importer recognized a Transform position, local position, or scale assignment and created a Transform node, but it cannot guarantee that all vector fields match the original expression.", "The object may move or scale incorrectly if the target or vector components are wrong.", "Check the target object and every vector field against the original C# assignment."],
-  [/Skipped unsupported statement:\s*flipX\s*=\s*false/i, "The statement flipX = false was skipped because the importer did not resolve it as a supported variable assignment or component-property assignment.", "If flipX is SpriteRenderer.flipX, the sprite may not be set to its intended unflipped state.", "Support Boolean property assignments. If this is SpriteRenderer.flipX, create a Set Component Info node for SpriteRenderer.flipX with false; if it is a declared variable, use Set Variable."],
-  [/Skipped unsupported statement:\s*flipX\s*=\s*true/i, "The statement flipX = true was skipped because the importer did not resolve it as a supported variable assignment or component-property assignment.", "If flipX is SpriteRenderer.flipX, the sprite may not flip horizontally when expected.", "Support Boolean property assignments. If this is SpriteRenderer.flipX, create a Set Component Info node for SpriteRenderer.flipX with true; if it is a declared variable, use Set Variable."],
-  [/Imported assignment to .*expression needs manual conversion:\s*default/i, "The assignment uses the C# default expression. Its value depends on the destination type: numeric values become zero, bool becomes false, reference types such as GameObject become null, and structs such as Vector3 receive their default value.", "The variable may not receive the value that the C# script intended.", "Resolve the destination variable's type and create the matching typed default value. Do not treat default as one universal literal."],
-  [/Loops \(for \/ foreach \/ while \/ do\)/i, "The method contains a loop, but the importer has not built the repeated execution flow.", "Statements intended to run repeatedly may be missing or run the wrong number of times.", "Add loop nodes with condition/iteration inputs, a loop body, and an exit path."],
-  [/Switch statements/i, "The method contains a switch with multiple cases that has not been converted into a branching graph.", "Case-specific behaviour may be missing.", "Add switch/case flow nodes and preserve break and default behaviour."],
-  [/Return statements/i, "The method contains a return statement or return value that is not fully represented.", "Execution may continue when the original method exits, or a returned value may be lost.", "Add return/early-exit support and typed return values where needed."],
-  [/Get Component calls/i, "The code requests a Unity component from a GameObject, but that call has not been fully converted into a Get Component node.", "Later component reads or changes may lack a valid component reference.", "Add a typed Get Component node for the requested component and connect its GameObject target."],
-  [/Instantiate \/ Destroy object calls/i, "The code creates or destroys Unity objects, but these lifecycle operations are not fully represented.", "Objects may fail to spawn or may remain in the scene unexpectedly.", "Add Instantiate and Destroy nodes with the required object, position, rotation, and target inputs."],
-  [/Coroutine calls/i, "The code starts or stops a coroutine, which can pause and resume execution across frames.", "Timed sequences and wait operations may be lost.", "Add coroutine start/stop support and nodes for supported yield instructions such as waiting for seconds."],
-  [/Unity vector \/ rotation utility expressions/i, "The code uses a vector, color, or quaternion utility such as Euler, Lerp, MoveTowards, zero, one, or identity that needs expression-level parsing.", "A vector or rotation value may be missing or incorrect.", "Map each exact utility call to a typed node or typed constant and preserve all arguments."],
-  [/Transform rotation \/ direction \/ parent operations/i, "The code reads or changes rotation, direction vectors, or transform parenting beyond the simple assignments currently recognized.", "The object may face the wrong direction, rotate incorrectly, or fail to attach to a parent.", "Add the appropriate rotation, direction-vector, or Set Parent nodes for the exact operations used."],
-  [/Compound assignments and increment \/ decrement/i, "The code uses shorthand such as +=, -=, *=, /=, ++, or -- to update an existing value.", "The arithmetic or variable update may be missing.", "Convert each operation into a read-value → math operation → set-value chain while preserving type and order."],
-  [/Exception handling \/ yield \/ async operations/i, "The method uses exception handling, yield, async/await, or locking, which requires control-flow support beyond ordinary execution wires.", "Error handling, waiting, asynchronous results, or protected execution may not be preserved.", "Add support for the exact construct or clearly mark it unsupported rather than silently omitting it."],
-  [/Collection creation and collection operations/i, "The code creates or uses a List, Dictionary, or HashSet, but collection construction and operations are not fully translated.", "Adding, removing, looking up, or iterating collection items may be missing.", "Add typed collection nodes for the collection type and operations used."],
-  [/Imported assignment to .*expression needs manual conversion/i, "The importer found an assignment to a known variable but could not translate the right-hand expression into a value node.", "The variable's new value may not be connected and could remain at its initial value.", "Add expression parsing for this value or build equivalent typed nodes and connect their output to Set Variable."],
-  [/Skipped unsupported statement:\s*([\s\S]+)/i, "The importer found this statement but could not safely translate it: " + (item.match(/Skipped unsupported statement:\s*([\s\S]+)/i)?.[1]||"unknown statement") + ".", "That operation is absent from the generated graph, so the imported Blueprint may behave differently from the original C#.", "Add importer handling for this exact syntax using correctly typed value nodes and execution connections." ]
- ];
- const found=details.find(([re])=>re.test(item));
- return found?{summary:found[1],impact:found[2],next:found[3]}:{summary:"The importer detected a feature or statement it cannot fully represent in the Blueprint graph yet.",impact:"Some behaviour may be missing from the generated graph, so it may differ from the original C#.",next:"Inspect the original statement and add the required typed nodes and flow connections. Keep this warning until the conversion is reliable."};
-}
-function showImportReport(items,className){
- const previous=document.getElementById("importReport");if(previous)previous.remove();
- const overlay=document.createElement("div");overlay.id="importReport";overlay.className="import-progress";
- const explained=items.map(item=>({item,...explainImportWarning(item)}));
- const reportText="C# Blueprint import report\nProject: "+className+"\n\nDetailed items needing node/importer support:\n"+explained.map((x,i)=>(i+1)+". "+x.item+"\n   What it means: "+x.summary+"\n   Possible effect: "+x.impact+"\n   Needed support / next step: "+x.next).join("\n\n")+"\n\nPlease add these node/importer capabilities to the C# Studio Blueprint editor.";
- overlay.innerHTML='<div class="import-progress-card import-report-card"><div class="import-progress-mark">!</div><strong>Some code needs new nodes</strong><p>The import worked, but some code could not be fully represented. Each item explains what was detected, what behaviour may be missing, and what support is needed. Copy all includes these explanations.</p><div class="import-report-list"></div><div class="import-report-actions"><button type="button" id="copyImportReport">Copy all</button><button type="button" id="closeImportReport">Close</button></div><p class="import-progress-sub">Some warnings describe a category of API calls and may not identify every exact expression.</p></div>';
- const list=overlay.querySelector(".import-report-list");
- explained.forEach((x,i)=>{
-  const row=document.createElement("div");row.className="import-report-item";row.style.cssText="text-align:left;white-space:normal;padding:12px;margin:8px 0;line-height:1.45";
-  const title=document.createElement("strong");title.textContent=(i+1)+". "+x.item;row.appendChild(title);
-  [["What it means",x.summary],["Possible effect",x.impact],["Needed support / next step",x.next]].forEach(([label,value])=>{const p=document.createElement("p");p.style.cssText="margin:7px 0 0;white-space:pre-wrap";const b=document.createElement("strong");b.textContent=label+": ";p.appendChild(b);p.appendChild(document.createTextNode(value));row.appendChild(p)});
-  list.appendChild(row);
- });
- document.body.appendChild(overlay);
- overlay.querySelector("#copyImportReport").onclick=async()=>{
-  try{await navigator.clipboard.writeText(reportText);overlay.querySelector("#copyImportReport").textContent="Copied!"}
-  catch(e){const area=document.createElement("textarea");area.value=reportText;area.style.position="fixed";area.style.opacity="0";document.body.appendChild(area);area.select();const ok=document.execCommand("copy");area.remove();overlay.querySelector("#copyImportReport").textContent=ok?"Copied!":"Select report";if(!ok){const fallback=document.createElement("textarea");fallback.value=reportText;fallback.rows=8;fallback.style.width="100%";list.appendChild(fallback);fallback.focus();fallback.select()}}
- };
- overlay.querySelector("#closeImportReport").onclick=()=>overlay.remove();
 }
 function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
