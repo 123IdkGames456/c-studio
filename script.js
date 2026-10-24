@@ -625,19 +625,19 @@ async function importCSharp(source,fileName){
   let previous=ev, col=0;
   const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*\s*=\s*[^;]+);/g)||[];
   const featureChecks=[
-   [/\\bif\\s*\\(/,"If / else branching"],
-   [/\\b(?:for|foreach|while|do)\\b/,"Loops (for / foreach / while / do)"],
-   [/\\bswitch\\s*\\(/,"Switch statements"],
-   [/\\breturn\\b/,"Return statements and return values"],
-   [/\\b(?:GetComponent|GetComponentInChildren|GetComponentInParent)\\s*<|\\bGetComponent\\s*\\(/,"Get Component calls"],
-   [/\\b(?:Instantiate|Destroy|DestroyImmediate)\\s*\\(/,"Instantiate / Destroy object calls"],
-   [/\\b(?:StartCoroutine|StopCoroutine)\\s*\\(/,"Coroutine calls"],
-   [/\\b(?:Quaternion|Vector2|Vector3|Vector4|Color)\\.(?:Euler|AngleAxis|Lerp|MoveTowards|zero|one|identity)\\b/,"Unity vector / rotation utility expressions"],
-   [/\\b(?:transform|gameObject)\\.(?:rotation|localRotation|forward|right|up|parent|SetParent)\\b/,"Transform rotation / direction / parent operations"],
-   [/(?:\\+=|-=|\\*=|\\/=|\\+\\+|--)/,"Compound assignments and increment / decrement"],
-   [/\\b(?:Input|Time|Physics|Mathf|Random)\\./,"Unity Input / Time / Physics / Mathf / Random API calls"],
-   [/\\b(?:try|catch|throw|yield|await|lock)\\b/,"Exception handling / yield / async operations"],
-   [/\\bnew\\s+(?:List|Dictionary|HashSet)\\s*</,"Collection creation and collection operations"]
+   [/\bif\s*\(/,"If / else branching"],
+   [/\b(?:for|foreach|while|do)\b/,"Loops (for / foreach / while / do)"],
+   [/\bswitch\s*\(/,"Switch statements"],
+   [/\breturn\b/,"Return statements and return values"],
+   [/\b(?:GetComponent|GetComponentInChildren|GetComponentInParent)\s*<|\bGetComponent\s*\(/,"Get Component calls"],
+   [/\b(?:Instantiate|Destroy|DestroyImmediate)\s*\(/,"Instantiate / Destroy object calls"],
+   [/\b(?:StartCoroutine|StopCoroutine)\s*\(/,"Coroutine calls"],
+   [/\b(?:Quaternion|Vector2|Vector3|Vector4|Color)\.(?:Euler|AngleAxis|Lerp|MoveTowards|zero|one|identity)\b/,"Unity vector / rotation utility expressions"],
+   [/\b(?:transform|gameObject)\.(?:rotation|localRotation|forward|right|up|parent|SetParent)\b/,"Transform rotation / direction / parent operations"],
+   [/(?:\+=|-=|\*=|\/=|\+\+|--)/,"Compound assignments and increment / decrement"],
+   [/\b(?:Input|Time|Physics|Mathf|Random)\./,"Unity Input / Time / Physics / Mathf / Random API calls"],
+   [/\b(?:try|catch|throw|yield|await|lock)\b/,"Exception handling / yield / async operations"],
+   [/\bnew\s+(?:List|Dictionary|HashSet)\s*</,"Collection creation and collection operations"]
   ];
   featureChecks.forEach(([re,label])=>{if(re.test(method.body))warnings.push("Needs a node or importer support: "+label+" (in "+method.name+")");});
   for(const rawStatement of statements){
