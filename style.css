@@ -168,3 +168,8 @@ button:active{transform:translateY(1px)}
 .mini-map.minimized .mini-map-title{margin:0}
 .mini-map.minimized #miniMapCanvas{display:none}
 @media(max-width:650px){.mini-map{right:6px;bottom:6px;width:150px}.mini-map.minimized{width:auto}}
+
+/* Keep the graph overview pinned above the workspace and interactive while panning. */
+.mini-map{position:fixed;right:298px;bottom:14px;z-index:100;width:210px}
+@media(max-width:1050px){.mini-map{right:14px;bottom:14px}}
+@media(max-width:650px){.mini-map{right:6px;bottom:6px;width:150px}}
