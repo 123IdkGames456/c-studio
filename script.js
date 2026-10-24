@@ -180,9 +180,15 @@ function removeIncompatibleLinksForInput(nodeId){
 }
 const allCategories = ["All", ...BlueprintBlocks.categories];
 function status(s){$("graphStatus").textContent=" · "+s}
+function defaultNodePosition(){
+ const workspace=$("workspace"),canvas=$("canvas"),wr=workspace.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
+ const centerX=wr.left+workspace.clientWidth/2,centerY=wr.top+workspace.clientHeight/2;
+ return {x:Math.max(0,Math.min(26900,centerX-cr.left+workspace.scrollLeft-125)),y:Math.max(0,Math.min(19400,centerY-cr.top+workspace.scrollTop-65))};
+}
 function addNode(type,x,y,values={}) {
  const d=getDef(type); if(!d)return;
- const n={id:nextNode++,type,x:x??(90+(nodes.length%4)*250),y:y??(70+(nodes.length%4)*170),values:{}};
+ const center=defaultNodePosition();
+ const n={id:nextNode++,type,x:x??center.x,y:y??center.y,values:{}};
  (d.fields||[]).forEach(f=>n.values[f.id]=values[f.id]??f.default??(f.options?f.options[0][0]:""));
  if(type==="getvar"||type==="setvar") n.values.variable=values.variable??variables[0]?.id??"";
  nodes.push(n);selectedNode=n.id;renderAll();return n;
