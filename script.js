@@ -588,142 +588,6 @@ function pruneIncompatibleLinks(){
  }
  );
 }
-async function importCSharp(source,fileName){
- const raw=String(source||"");
- if(!raw.trim()){alert("The C# file is empty.");return}
- const clean=raw.replace(/\/\*[\s\S]*?\*\//g,"").replace(/(^|[^:])\/\/.*$/gm,"$1");
- const classMatch=clean.match(/\bclass\s+([A-Za-z_]\w*)/);
- const className=classMatch?.[1]||String(fileName||"ImportedScript").replace(/\.cs$/i,"").replace(/[^A-Za-z0-9_]/g,"")||"ImportedScript";
- const methods=[];
- const methodRe=/\b(?:public|private|protected|internal|static|virtual|override|async|sealed|new|\s)*\s*(?:void|IEnumerator|Task)\s+(Start|Update|FixedUpdate)\s*\([^)]*\)\s*\{/g;
- let mm;
- while((mm=methodRe.exec(clean))){
-  const open=clean.indexOf("{",mm.index), bodyStart=open+1;let depth=1,k=bodyStart;
-  for(;k<clean.length&&depth;k++){if(clean[k]==="{")depth++;else if(clean[k]==="}")depth--;}
-  methods.push({name:mm[1],body:clean.slice(bodyStart,k-1)});
- }
- const eventMap={Start:"start",Update:"update",FixedUpdate:"fixed",LateUpdate:"update",Awake:"awake",OnEnable:"onenable",OnDisable:"ondisable",OnDestroy:"ondestroy",OnTriggerEnter:"ontriggerenter",OnTriggerExit:"ontriggerexit",OnCollisionEnter:"oncollisionenter",OnCollisionExit:"oncollisionexit"};
- const specs=[],edges=[],warnings=[];
- let sid=1;
- const spec=(type,x,y,values={})=>{const s={sid:sid++,type,x,y,values};specs.push(s);return s};
- const edge=(a,ap,b,bp,kind="data")=>edges.push({from:a.sid,fromPin:ap,to:b.sid,toPin:bp,kind});
- const varMap=new Map();
- const declarations=[...clean.matchAll(/\b(private|public|protected)?\s*(?:static\s+)?(int|float|double|bool|string|Vector2|Vector3|Vector4|GameObject|Transform|Rigidbody|Rigidbody2D)\s+([A-Za-z_]\w*)\s*(?:=\s*([^;]+))?;/g)];
- declarations.forEach(m=>{
-  if(varMap.has(m[3]))return;
-  const type=m[2],initial=(m[4]||"").trim();
-  const value=initial.replace(/f\b/g,"").replace(/^["']|["']$/g,"");
-  const v={id:"v"+(varMap.size+1),name:m[3],type,access:m[1]==="public"?"public-inspector":"private-inspector",initial:value||BlueprintTypes.defaultValue(type)};
-  variables.push(v);varMap.set(m[3],v);
- });
- let baseY=70;
- const eventOrder=["Awake","OnEnable","Start","FixedUpdate","Update","LateUpdate","OnTriggerEnter","OnTriggerExit","OnCollisionEnter","OnCollisionExit","OnDisable","OnDestroy"];
- methods.sort((a,b)=>eventOrder.indexOf(a.name)-eventOrder.indexOf(b.name));
- if(!methods.length && /\bDebug\.Log(?:Warning|Error)?\s*\(/.test(clean))methods.push({name:"Start",body:clean});
- for(const method of methods){
-  const ev=spec(eventMap[method.name]||"start",70,baseY);
-  let previous=ev, col=0;
-  const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*\s*=\s*[^;]+);/g)||[];
-  for(const rawStatement of statements){
-   const st=rawStatement.trim().replace(/;$/,"");
-   const log=st.match(/^Debug\.(LogWarning|LogError|Log)\s*\(([\s\S]*)\)$/);
-   if(log){
-    const expr=log[2].trim(),level=log[1]==="LogWarning"?"warning":log[1]==="LogError"?"error":"log";
-    const dbg=spec("debug",360+col*300,baseY,{level,message:/^["']/.test(expr)?expr.slice(1,-1):expr});
-    edge(previous,"Then",dbg,"Exec","flow");previous=dbg;col++;
-    const math=expr.match(/^\(?\s*(-?\d+(?:\.\d+)?f?)\s*\)?\s*([+*/%-])\s*\(?\s*(-?\d+(?:\.\d+)?f?)\s*\)?$/);
-    if(math){
-     const typ=/[.f]/i.test(math[1]+math[3])?"float":"int",op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[math[2]];
-     const a=spec("literal",360+(col-1)*300,baseY+180,{type:typ,value:math[1].replace(/f$/i,"")});
-     const b=spec("literal",360+(col-1)*300,baseY+350,{type:typ,value:math[3].replace(/f$/i,"")});
-     const calc=spec("math",610+(col-1)*300,baseY+260,{operation:op,outputType:typ});
-     edge(a,"value",calc,"a");edge(b,"value",calc,"b");edge(calc,"value",dbg,"value");dbg.values.message="";
-    }else if(!/^["']/.test(expr))warnings.push("Kept Debug expression as text because it needs more parsing: "+expr);
-    continue;
-   }
-   const tr=st.match(/^(?:gameObject\.)?transform\.(position|localPosition|localScale)\s*=\s*new\s+Vector3\s*\(([^)]*)\)$/);
-   if(tr){
-    const vals=tr[2].split(",").map(v=>v.trim());
-    const vector=spec("vector",360+col*300,baseY,{vectorType:"Vector3",x:vals[0]||"0",y:vals[1]||"0",z:vals[2]||"0"});
-    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localScale"?"setScale":"setPosition"});
-    edge(previous,"Then",set,"Exec","flow");previous=set;col++;
-    warnings.push("Converted a transform assignment to a Transform node; check its vector fields.");
-    continue;
-   }
-   const mathAssign=st.match(/^([A-Za-z_]\w*)\s*=\s*(-?\d+(?:\.\d+)?f?)\s*([+*/%-])\s*(-?\d+(?:\.\d+)?f?)$/);
-   if(mathAssign&&varMap.has(mathAssign[1])){
-    const v=varMap.get(mathAssign[1]),typ=v.type==="int"?"int":"float",op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[mathAssign[3]];
-    const a=spec("literal",360+col*300,baseY+180,{type:typ,value:mathAssign[2].replace(/f$/i,"")}),b=spec("literal",360+col*300,baseY+350,{type:typ,value:mathAssign[4].replace(/f$/i,"")});
-    const calc=spec("math",610+col*300,baseY+260,{operation:op,outputType:typ}),set=spec("setvar",900+col*300,baseY,{variable:v.id});
-    edge(previous,"Then",set,"Exec","flow");edge(a,"value",calc,"a");edge(b,"value",calc,"b");edge(calc,"value",set,"value");previous=set;col++;continue;
-   }
-   const assignment=st.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/);
-   if(assignment&&varMap.has(assignment[1])){
-    const v=varMap.get(assignment[1]),expr=assignment[2].trim();
-    const set=spec("setvar",360+col*300,baseY,{variable:v.id});
-    edge(previous,"Then",set,"Exec","flow");previous=set;col++;
-    const lit=expr.match(/^(-?\d+(?:\.\d+)?f?|true|false|null|["'][\s\S]*["'])$/);
-    if(lit){
-     const typ=/^(true|false)$/.test(expr)?"bool":/^["']/.test(expr)?"string":expr==="null"?"null":/[.f]/i.test(expr)?"float":"int";
-     const node=spec("literal",360+(col-1)*300,baseY+180,{type:typ,value:expr.replace(/f$/i,"").replace(/^["']|["']$/g,"")});edge(node,"value",set,"value");
-    }else if(varMap.has(expr)){const node=spec("getvar",360+(col-1)*300,baseY+180,{variable:varMap.get(expr).id});edge(node,"value",set,"value");}
-    else warnings.push("Imported assignment to "+v.name+"; expression needs manual conversion: "+expr);
-    continue;
-   }
-   if(st.trim())warnings.push("Skipped unsupported statement: "+st.slice(0,90));
-  }
-  baseY+=Math.max(420,(col+1)*90);
- }
- if(!specs.length){alert("No supported Unity methods or statements were found. The existing graph was kept.");return}
- const overlay=document.createElement("div");overlay.id="importProgress";overlay.className="import-progress";
- overlay.innerHTML='<div class="import-progress-card"><div class="import-progress-mark">◈</div><strong>Building your Blueprint graph</strong><p id="importProgressText">Reading C#…</p><div class="import-progress-track"><span id="importProgressBar"></span></div><div class="import-progress-numbers"><span id="importProgressCount">0 / '+specs.length+' nodes</span><span id="importProgressPercent">0%</span></div><p class="import-progress-sub">Creating nodes, connecting pins, and organizing the layout.</p></div>';
- document.body.appendChild(overlay);
- const progressText=overlay.querySelector("#importProgressText"),count=overlay.querySelector("#importProgressCount"),bar=overlay.querySelector("#importProgressBar"),percent=overlay.querySelector("#importProgressPercent");
- $("projectName").value=className;nodes=[];links=[];nextNode=1;nextVariable=variables.length+1;selectedNode=null;renderAll();
- try{
-  for(let i=0;i<specs.length;i++){
-   const s=specs[i],d=getDef(s.type);
-   if(d){
-    const n={id:nextNode++,type:s.type,x:s.x,y:s.y,values:{}};
-    (d.fields||[]).forEach(f=>n.values[f.id]=s.values[f.id]??f.default??(f.options?f.options[0][0]:""));
-    Object.assign(n.values,s.values||{});nodes.push(n);
-   }
-   if(i%3===0||i===specs.length-1){
-    const done=Math.min(i+1,specs.length),pct=Math.round(done/specs.length*100);
-    count.textContent=done+" / "+specs.length+" nodes";bar.style.width=pct+"%";percent.textContent=pct+"%";
-    progressText.textContent=done===specs.length?"Connecting pins and organizing…":"Placing nodes…";
-    renderNodes();drawWires();drawGraphOverview();
-    await new Promise(resolve=>setTimeout(resolve,12));
-   }
-  }
-  const idMap=new Map(specs.map((s,i)=>[s.sid,i+1]));
-  edges.forEach(e=>{const from=nodes[idMap.get(e.from)-1],to=nodes[idMap.get(e.to)-1];if(from&&to)links.push({from:from.id,fromPin:e.fromPin,to:to.id,toPin:e.toPin,kind:e.kind});});
-  progressText.textContent="Connecting pins…";renderAll();await new Promise(resolve=>setTimeout(resolve,100));
-  const byId=new Map(nodes.map(n=>[n.id,n]));
-  const outgoing=new Map();
-  links.filter(l=>l.kind==="flow").forEach(l=>{if(!outgoing.has(l.from))outgoing.set(l.from,[]);outgoing.get(l.from).push(l.to)});
-  const visited=new Set();let lane=0;
-  nodes.filter(n=>getDef(n.type)?.kind==="event").forEach(event=>{
-   let current=event,depth=0;
-   while(current&&!visited.has(current.id)&&depth<100){
-    visited.add(current.id);current.x=70+depth*320;current.y=70+lane*600;
-    const dataChildren=links.filter(l=>l.kind==="data"&&l.to===current.id).map(l=>byId.get(l.from)).filter(Boolean);
-    dataChildren.forEach((n,i)=>{if(!visited.has(n.id)){n.x=current.x-35+i*210;n.y=current.y+260+i*135;visited.add(n.id)}});
-    const next=(outgoing.get(current.id)||[]).map(id=>byId.get(id)).find(n=>n&&!visited.has(n.id));current=next;depth++;
-   }
-   lane++;
-  });
-  nodes.forEach((n,i)=>{if(!visited.has(n.id)){n.x=70+(i%4)*320;n.y=70+lane*600+Math.floor(i/4)*260;}}); 
-  const minX=Math.min(...nodes.map(n=>n.x)),minY=Math.min(...nodes.map(n=>n.y));
-  nodes.forEach(n=>{n.x+=70-minX;n.y+=70-minY});
-  selectedNode=nodes[0]?.id??null;
-  progressText.textContent="Final layout complete";count.textContent=nodes.length+" / "+nodes.length+" nodes";bar.style.width="100%";percent.textContent="100%";
-  renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});
-  await new Promise(resolve=>setTimeout(resolve,220));overlay.remove();
-  status("Imported C# · "+nodes.length+" nodes");
-  if(warnings.length)alert("Import completed. Some code needs manual conversion or review:\n\n"+[...new Set(warnings)].slice(0,10).join("\n"));
- }catch(err){overlay.remove();renderAll();throw err;}
-}
 function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
 let canvasPan=null;
@@ -800,7 +664,7 @@ $("miniMapToggle").addEventListener("click",()=>{
 });
 
 function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable}}
-function loadState(s){if(!s||!Array.isArray(s.nodes))return;variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
+function loadState(s){if(!s||!Array.isArray(s.nodes))throw new Error("This JSON is not a Blueprint project.");variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
 
 const templates=[
  {id:"rotate",name:"Rotating Cube",description:"Rotate the object smoothly around its Y axis.",build(){
@@ -862,11 +726,23 @@ $("modalClose").onclick=$("modalCancel").onclick=()=>{$("modal").hidden=true};
 $("starterExample").onclick=example;
  $("loadTemplate").onclick=openTemplates;
 $("newProject").onclick=()=>{if(confirm("Create a new project? Unsaved changes in the current graph will be replaced.")){nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value="My Blueprint Project";renderAll();status("New project")}};
-$("saveProject").onclick=()=>{try{BlueprintStorage.save(snapshot());status("Saved locally")}catch(e){alert("Could not save locally: "+e.message)}};
-$("loadProject").onclick=()=>{const s=BlueprintStorage.load();if(s)loadState(s);else $("fileInput").click()};
-$("fileInput").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{loadState(JSON.parse(await f.text()));status("Project loaded")}catch(err){alert("Invalid project JSON.")}e.target.value=""};
-$("importCSharp").onclick=()=>$("csharpInput").click();
-$("csharpInput").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await importCSharp(await f.text(),f.name)}catch(err){alert("Could not import this C# file: "+err.message)}e.target.value=""};
+let currentLibraryId=null;const LIBRARY_KEY="ikirumi-unity-blueprint-library-v1";
+function libraryEntries(){try{const a=JSON.parse(localStorage.getItem(LIBRARY_KEY)||"[]");return Array.isArray(a)?a:[]}catch{return []}}
+function writeLibrary(a){localStorage.setItem(LIBRARY_KEY,JSON.stringify(a))}
+function entrySize(e){return new Blob([JSON.stringify(e.project)]).size}
+function formatSize(n){return n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(2)+" MB"}
+function makeEntry(project,name,old=null){const now=new Date().toISOString();return{id:old?.id||"script-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),name:String(name||project.projectName||"Untitled script"),folder:old?.folder||"My Scripts",favorite:old?.favorite||false,createdAt:old?.createdAt||now,updatedAt:now,project}}
+function saveCurrentToLibrary(forceNew=false,name=null){const project=JSON.parse(JSON.stringify(snapshot())),all=libraryEntries();let old=!forceNew&&currentLibraryId?all.find(e=>e.id===currentLibraryId):null;if(!old&&!forceNew)old=all.find(e=>e.name===project.projectName);const entry=makeEntry(project,name||old?.name||project.projectName,old);if(old)all[all.findIndex(e=>e.id===old.id)]=entry;else all.unshift(entry);currentLibraryId=entry.id;writeLibrary(all);renderLibrary();return entry}
+function openLibrary(){renderLibrary();$("libraryPanel").hidden=false}
+function renderLibrary(){const list=$("libraryList"),q=($("librarySearch").value||"").trim().toLowerCase(),all=libraryEntries(),visible=all.filter(e=>(e.name+" "+(e.folder||"")+(e.favorite?" favorite":"")).toLowerCase().includes(q));$("libraryCount").textContent=all.length+" script"+(all.length===1?"":"s");list.innerHTML=visible.length?visible.map(e=>'<article class="library-entry"><div class="library-entry-top"><button class="library-load" data-action="load" data-id="'+esc(e.id)+'"><strong>'+esc(e.name)+'</strong><span>'+esc(e.folder||"My Scripts")+(e.favorite?" · ★ Favorite":"")+'</span></button><button class="library-favorite '+(e.favorite?"active":"")+'" data-action="favorite" data-id="'+esc(e.id)+'">'+(e.favorite?"★":"☆")+'</button></div><div class="library-meta"><span>Size <b>'+formatSize(entrySize(e))+'</b></span><span>Made '+esc(new Date(e.createdAt).toLocaleString())+'</span><span>Updated '+esc(new Date(e.updatedAt).toLocaleString())+'</span></div><div class="library-entry-actions"><button data-action="rename" data-id="'+esc(e.id)+'">Rename</button><button data-action="move" data-id="'+esc(e.id)+'">Move</button><button data-action="export" data-id="'+esc(e.id)+'">Export JSON</button><button class="danger" data-action="delete" data-id="'+esc(e.id)+'">Remove</button></div></article>').join(""):'<div class="library-empty">No saved scripts yet. Press Save or add a JSON file.</div>'}
+async function loadProjectWithProgress(p,id=null){if(!p||!Array.isArray(p.nodes))throw Error("This JSON is not a Blueprint project.");const vs=Array.isArray(p.variables)?p.variables:[],ns=p.nodes,ls=Array.isArray(p.links)?p.links:[],total=vs.length+ns.length+ls.length+1,panel=$("loadProgress"),c={v:0,n:0,l:0,i:0,it:ns.reduce((a,n)=>a+Object.values(n.values||{}).filter(v=>v!==""&&v!==null&&v!==undefined).length,0)};let done=0;panel.hidden=false;$("loadProgressTitle").textContent="Loading "+(p.projectName||"Blueprint script");const update=t=>{$("loadProgressDetail").textContent=t;$("loadProgressBar").style.width=Math.min(100,Math.round(done/Math.max(1,total)*100))+"%";$("loadProgressPercent").textContent=Math.min(100,Math.round(done/Math.max(1,total)*100))+"%";$("loadProgressStages").innerHTML='<div>Variables added <b>'+c.v+' / '+vs.length+'</b></div><div>Nodes spawned <b>'+c.n+' / '+ns.length+'</b></div><div>Connections added <b>'+c.l+' / '+ls.length+'</b></div><div>Manual inputs set <b>'+c.i+' / '+c.it+'</b></div>'},pause=()=>new Promise(r=>setTimeout(r,Math.min(12,Math.max(1,150/Math.max(1,total)))));try{variables=[];nodes=[];links=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value=p.projectName||"My Blueprint Project";renderAll();update("Preparing project…");await pause();for(const v of vs){variables.push(v);c.v++;done++;nextVariable=Math.max(nextVariable,Number(String(v.id).replace(/^v/,""))+1||c.v+1);renderVariables();update("Adding variables…");await pause()}for(const src of ns){const d=getDef(src.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));nodes.push({...src,values:{...defaults,...(src.values||{})}});c.n++;c.i+=Object.values(src.values||{}).filter(v=>v!==""&&v!==null&&v!==undefined).length;done++;nextNode=Math.max(nextNode,Number(src.id)||0)+1;renderNodes();update("Spawning nodes…");await pause()}for(const l of ls){links.push(l);c.l++;done++;drawWires();update("Restoring connections…");await pause()}nextNode=p.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=p.nextVariable||variables.length+1;selectedNode=nodes[0]?.id??null;renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});$("loadProgressDetail").textContent="All stages complete.";$("loadProgressBar").style.width="100%";$("loadProgressPercent").textContent="100%";await new Promise(r=>setTimeout(r,300));panel.hidden=true;if(id)currentLibraryId=id;status("Loaded "+nodes.length+" nodes")}catch(e){panel.hidden=true;throw e}}
+$("saveProject").onclick=()=>{try{BlueprintStorage.save(snapshot());const e=saveCurrentToLibrary();status("Saved to this device · "+e.name)}catch(e){alert("Could not save locally: "+e.message)}};
+$("loadProject").onclick=()=>{const p=BlueprintStorage.load();if(p)loadProjectWithProgress(p).catch(e=>alert(e.message));else $("fileInput").click()};
+$("fileInput").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const p=JSON.parse(await file.text());await loadProjectWithProgress(p);BlueprintStorage.save(snapshot());status("Project JSON imported")}catch(err){alert("Could not import JSON: "+err.message)}e.target.value=""};
+$("importJSON").onclick=()=>$("fileInput").click();$("openLibrary").onclick=openLibrary;$("closeLibrary").onclick=()=>$("libraryPanel").hidden=true;$("librarySearch").addEventListener("input",renderLibrary);$("libraryImportJson").onclick=()=>$("libraryJsonInput").click();
+$("librarySaveCurrent").onclick=()=>{const name=prompt("Name this saved script:",$("projectName").value||"Untitled script");if(name===null)return;try{const e=saveCurrentToLibrary(true,name.trim()||"Untitled script");status("Saved "+e.name+" to Library")}catch(e){alert("Could not save to Library: "+e.message)}};
+$("libraryJsonInput").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const p=JSON.parse(await file.text());if(!p||!Array.isArray(p.nodes))throw Error("The JSON does not contain a Blueprint project.");const all=libraryEntries();all.unshift(makeEntry(p,file.name.replace(/\.json$/i,"")||p.projectName||"Imported script"));writeLibrary(all);renderLibrary();status("JSON added to Library")}catch(err){alert("Could not add JSON to Library: "+err.message)}e.target.value=""};
+$("libraryList").addEventListener("click",async e=>{const b=e.target.closest("button[data-action]");if(!b)return;const {action,id}=b.dataset,all=libraryEntries(),entry=all.find(x=>x.id===id);if(!entry)return;try{if(action==="load"){await loadProjectWithProgress(entry.project,entry.id);$("libraryPanel").hidden=true;return}if(action==="favorite")entry.favorite=!entry.favorite;if(action==="rename"){const n=prompt("Rename saved script:",entry.name);if(n===null)return;entry.name=n.trim()||entry.name;entry.updatedAt=new Date().toISOString()}if(action==="move"){const n=prompt("Move to collection/folder:",entry.folder||"My Scripts");if(n===null)return;entry.folder=n.trim()||"My Scripts";entry.updatedAt=new Date().toISOString()}if(action==="delete"){if(!confirm('Remove "'+entry.name+'" from this device?'))return;writeLibrary(all.filter(x=>x.id!==id));if(currentLibraryId===id)currentLibraryId=null;renderLibrary();return}if(action==="export")BlueprintStorage.download(BlueprintStorage.safeName(entry.name)+".json",BlueprintStorage.snapshot(entry.project),"application/json");writeLibrary(all);renderLibrary()}catch(err){alert("Library action failed: "+err.message)}});
 $("downloadProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safeName($("projectName").value)+".json",BlueprintStorage.snapshot(snapshot()),"application/json");
 $("exportProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safeName($("projectName").value)+".cs",$("codeOutput").textContent,"text/plain");
 $("copyCode").onclick=async()=>{try{await navigator.clipboard.writeText($("codeOutput").textContent);status("C# copied")}catch(e){const r=document.createRange();r.selectNodeContents($("codeOutput"));const s=getSelection();s.removeAllRanges();s.addRange(r);status("Select and copy the code")}};
