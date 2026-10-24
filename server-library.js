@@ -148,7 +148,7 @@
     });
     window.addEventListener("message", function onPublishMessage(event) {
       const data = event.data;
-      if (event.source !== frame.contentWindow || !data || data.type !== "cstudio-publish-result" || data.requestId !== requestId) return;
+      if (!data || data.type !== "cstudio-publish-result" || data.requestId !== requestId) return;
       window.removeEventListener("message", onPublishMessage);
       if (data.ok === true) publishSuccess();
       else if (data.code === "WRONG_PASSWORD" || /incorrect.*password|wrong password/i.test(String(data.message || ""))) publishFailure("", true);
