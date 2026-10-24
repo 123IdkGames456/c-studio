@@ -408,7 +408,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
      const target=valueExpr(targetLink.from,new Set(),"GameObject",targetLink.fromPin),transform=target+".transform";
      const v=valueForInput(n,"vector",new Set(),"Vector3"),quaternion=valueForInput(n,"quaternion",new Set(),"Quaternion");
      const rotationValue=quaternionLink?quaternion:"Quaternion.Euler("+v+")";
-     const code={setPosition:transform+".position = "+v+";",translate:transform+".Translate("+v+" * Time.deltaTime);",rotate:transform+".Rotate("+v+" * Time.deltaTime);",setRotation:transform+".rotation = "+rotationValue+";",setScale:transform+".localScale = "+v+";"};
+     const rotateFactor=(n.values?.rotationRate||"time")==="time"?" * Time.deltaTime":"";const rotateSpace=n.values?.rotateSpace==="self"?"Space.Self":"Space.World";const code={setPosition:transform+".position = "+v+";",translate:transform+".Translate("+v+" * Time.deltaTime);",rotate:transform+".Rotate("+v+rotateFactor+", "+rotateSpace+");",setRotation:transform+".rotation = "+rotationValue+";",setScale:transform+".localScale = "+v+";"};
      if(op==="setRotation"&&!quaternionLink&&!v3Link)report("Connect a Vector3 or Quaternion input to Set Rotation.");
      if(code[op])out.push(p+"if ("+target+" != null) "+code[op]);
     }
