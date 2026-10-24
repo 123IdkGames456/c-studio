@@ -217,7 +217,42 @@ function renderBlocks(){
  const filtered=defs.filter(d=>(activeCategory==="All"||d.category===activeCategory)&&(!q||[d.name,d.category,d.desc,...(d.aliases||[]),...(d.fields||[]).flatMap(f=>[f.label,...(f.options||[]).map(o=>o[1])])].join(" ").toLowerCase().includes(q)));
  const groups=[...new Set(filtered.map(d=>d.category))];
  $("blockList").innerHTML=groups.map(category=>'<section class="block-category-section"><div class="block-category-heading"><span>'+esc(category)+'</span><small>'+filtered.filter(d=>d.category===category).length+' blocks</small></div>'+filtered.filter(d=>d.category===category).map(d=>'<button class="block-item" data-type="'+d.id+'" style="--accent:'+d.color+'"><span class="block-dot"></span><span class="block-text"><strong>'+esc(d.name)+'</strong><small>'+esc(d.desc)+'</small></span></button>').join("")+'</section>').join("")||'<div class="subtle">No blocks found. Try a synonym, symbol, or operation name.</div>';
- $("blockList").querySelectorAll("[data-type]").forEach(b=>b.onclick=()=>addNode(b.dataset.type));
+ $("blockList").querySelectorAll("[data-type]").forEach(b=>{
+  b.onclick=e=>e.preventDefault();
+  b.addEventListener("pointerdown",e=>{
+   if(e.button!==0)return;
+   e.preventDefault();
+   const type=b.dataset.type,workspace=$("workspace");
+   let draggedNode=null,finished=false;
+   const inside=ev=>{const r=workspace.getBoundingClientRect();return ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom};
+   function move(ev){
+    if(finished||!inside(ev))return;
+    const p=canvasPoint(ev.clientX,ev.clientY);
+    if(!draggedNode){
+     draggedNode=addNode(type,Math.max(0,p.x-120),Math.max(0,p.y-22));
+     const el=$("canvas").querySelector('.node[data-id="'+draggedNode.id+'"]');
+     if(el){el.style.opacity=".78";el.style.pointerEvents="none";}
+    }else{
+     draggedNode.x=Math.max(0,Math.min(26900,p.x-120));
+     draggedNode.y=Math.max(0,Math.min(19400,p.y-22));
+     const el=$("canvas").querySelector('.node[data-id="'+draggedNode.id+'"]');
+     if(el){el.style.left=draggedNode.x+"px";el.style.top=draggedNode.y+"px";}
+     drawWires();
+    }
+   }
+   function cleanup(){window.removeEventListener("pointermove",move,true);window.removeEventListener("pointerup",end,true);window.removeEventListener("pointercancel",cancel,true);}
+   function end(ev){
+    if(finished)return;finished=true;cleanup();
+    if(!draggedNode)return;
+    if(!inside(ev)){nodes=nodes.filter(n=>n.id!==draggedNode.id);links=links.filter(l=>l.from!==draggedNode.id&&l.to!==draggedNode.id);selectedNode=null;renderAll();return;}
+    renderAll();status("Node placed");
+   }
+   function cancel(){if(finished)return;finished=true;cleanup();if(draggedNode){nodes=nodes.filter(n=>n.id!==draggedNode.id);selectedNode=null;renderAll();}}
+   window.addEventListener("pointermove",move,true);
+   window.addEventListener("pointerup",end,true);
+   window.addEventListener("pointercancel",cancel,true);
+  });
+ });
  $("blockTotal").textContent=filtered.length;
 }
 const componentProperties={
