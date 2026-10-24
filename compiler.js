@@ -314,6 +314,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(link)return valueExpr(link.from,seen,expectedType,link.fromPin);
   if((n.type==="vector"||n.type==="literal")&&["x","y","z","w"].includes(pin)&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values?.vectorType||n.values?.type))return typedFallback(n.values?.[pin]??(pin==="w"?"1":"0"),expectedType||"float");
   if((n.type==="changerotation"||n.type==="changeposition")&&["x","y","z","w"].includes(pin))return typedFallback(n.values?.[pin]??(pin==="w"?"1":"0"),expectedType||"float");
+  if(n.type==="smoothgoto"&&pin==="maxDistance")return typedFallback(n.values?.maxDistance??"1","float");
   if(pin==="minimumValue")return typedFallback(n.values?.minimum??"-45","float");
   if(pin==="maximumValue")return typedFallback(n.values?.maximum??"45","float");
   if(pin==="propertyValueInput")return propertyFallback(n);
