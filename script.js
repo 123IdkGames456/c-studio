@@ -623,7 +623,7 @@ async function importCSharp(source,fileName){
  for(const method of methods){
   const ev=spec(eventMap[method.name]||"start",70,baseY);
   let previous=ev, col=0;
-  const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*\s*=\s*[^;]+);/g)||[];
+  const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?\s*=\s*[^;]+);/g)||[];
   const featureChecks=[
    [/\bif\s*\(/,"If / else branching"],
    [/\b(?:for|foreach|while|do)\b/,"Loops (for / foreach / while / do)"],
@@ -666,7 +666,7 @@ async function importCSharp(source,fileName){
     warnings.push("Converted a transform assignment to a Transform node; check its vector fields.");
     continue;
    }
-   const mathAssign=st.match(/^([A-Za-z_]\w*)\s*=\s*(-?\d+(?:\.\d+)?f?)\s*([+*/%-])\s*(-?\d+(?:\.\d+)?f?)$/);
+   const componentBool=st.match(/^(?:(?:this\.)?([A-Za-z_]\w*)\.)?(flipX|flipY)\s*=\s*(true|false)$/);\n   if(componentBool){\n    const component=spec("getcomponent",360+col*300,baseY+160,{componentType:"SpriteRenderer"});\n    const self=spec("self",100+col*300,baseY+160,{});edge(self,"value",component,"target");\n    const set=spec("setcomponent",610+col*300,baseY,{["use_"+componentBool[2]]:"true"});\n    edge(previous,"Then",set,"Exec","flow");edge(component,"value",set,"component");\n    const literal=spec("literal",360+col*300,baseY+340,{type:"bool",value:componentBool[3]});edge(literal,"value",set,componentBool[2]);previous=set;col++;continue;\n   }\n   const mathAssign=st.match(/^([A-Za-z_]\\w*)\\s*=\\s*(-?\\d+(?:\\.\\d+)?f?)\\s*([+*/%-])\\s*(-?\\d+(?:\\.\\d+)?f?)$/);
    if(mathAssign&&varMap.has(mathAssign[1])){
     const v=varMap.get(mathAssign[1]),typ=v.type==="int"?"int":"float",op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[mathAssign[3]];
     const a=spec("literal",360+col*300,baseY+180,{type:typ,value:mathAssign[2].replace(/f$/i,"")}),b=spec("literal",360+col*300,baseY+350,{type:typ,value:mathAssign[4].replace(/f$/i,"")});
