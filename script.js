@@ -405,7 +405,8 @@ function beginWireDrag(e,node,pin){
  const isOutput=pin.dataset.direction==="output";
  const start=pinPos(node.id,pin.dataset.kind,isOutput,pin.dataset.pin);if(!start)return;
  const path=document.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("class","wire wire-preview");path.style.pointerEvents="none";path.style.stroke="#efbd70";path.style.strokeWidth="3";$("wires").appendChild(path);
- wireDrag={node:node.id,kind:pin.dataset.kind,pin:pin.dataset.pin,type:pin.dataset.type||"dynamic",direction:isOutput?"output":"input",start,path,pointerId:e.pointerId};
+ wireDrag={node:node.id,kind:pin.dataset.kind,pin:pin.dataset.pin,type:pin.dataset.type||"dynamic",direction:isOutput?"output":"input",start,path,pointerId:e.pointerId,clientX:e.clientX,clientY:e.clientY,autoScrollFrame:0};
+ wireDrag.autoScrollFrame=requestAnimationFrame(autoScrollWireDrag);
  window.addEventListener("pointermove",moveWireDrag);
  window.addEventListener("pointerup",endWireDrag,{once:true});
  window.addEventListener("pointercancel",cancelWireDrag,{once:true});
@@ -413,14 +414,32 @@ function beginWireDrag(e,node,pin){
 }
 function moveWireDrag(e){
  if(!wireDrag)return;
+ wireDrag.clientX=e.clientX;
+ wireDrag.clientY=e.clientY;
  const cursor=canvasPoint(e.clientX,e.clientY);
  const a=wireDrag.direction==="output"?wireDrag.start:cursor;
  const b=wireDrag.direction==="output"?cursor:wireDrag.start;
  const dx=Math.max(45,Math.abs(b.x-a.x)*.45);
  wireDrag.path.setAttribute("d","M "+a.x+" "+a.y+" C "+(a.x+dx)+" "+a.y+" "+(b.x-dx)+" "+b.y+" "+b.x+" "+b.y);
- const targetDirection=wireDrag.direction==="output"?"input":"output";
  document.querySelectorAll(".node .pin.snap-target").forEach(pin=>pin.classList.remove("snap-target"));
  const target=findSnapTarget(e.clientX,e.clientY,true);if(target)target.pin.classList.add("snap-target");
+}
+function autoScrollWireDrag(){
+ if(!wireDrag)return;
+ const workspace=$("workspace"),r=workspace.getBoundingClientRect(),x=wireDrag.clientX,y=wireDrag.clientY,edge=58,maxSpeed=18;
+ let dx=0,dy=0;
+ if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom){
+  if(x-r.left<edge)dx=-maxSpeed*(1-(x-r.left)/edge);
+  else if(r.right-x<edge)dx=maxSpeed*(1-(r.right-x)/edge);
+  if(y-r.top<edge)dy=-maxSpeed*(1-(y-r.top)/edge);
+  else if(r.bottom-y<edge)dy=maxSpeed*(1-(r.bottom-y)/edge);
+ }
+ if(dx||dy){
+  workspace.scrollLeft+=dx;
+  workspace.scrollTop+=dy;
+  moveWireDrag({clientX:x,clientY:y});
+ }
+ wireDrag.autoScrollFrame=requestAnimationFrame(autoScrollWireDrag);
 }
 function findSnapTarget(x,y,requireNear=true){
  if(!wireDrag)return null;
@@ -454,6 +473,7 @@ function cancelWireDrag(){finishWireDrag(null,true)}
 function finishWireDrag(target,cancelled){
  if(!wireDrag)return;
  const drag=wireDrag;wireDrag=null;
+ if(drag.autoScrollFrame)cancelAnimationFrame(drag.autoScrollFrame);
  window.removeEventListener("pointermove",moveWireDrag);window.removeEventListener("pointerup",endWireDrag);window.removeEventListener("pointercancel",cancelWireDrag);
  document.querySelectorAll(".pin.snap-target").forEach(p=>p.classList.remove("snap-target"));
  drag.path.remove();
