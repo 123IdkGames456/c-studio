@@ -777,6 +777,8 @@ $("graphTab").onclick=e=>{e.preventDefault();setView("graph")};
 $("csharpTab").onclick=e=>{e.preventDefault();setView("code")};
 $("blockSearch").addEventListener("input",renderBlocks);
 $("addVariable").onclick=$("addVariableSide").onclick=()=>openVariableModal();
+$("toggleVariables").onclick=()=>{$("variablesPanel").hidden=!$("variablesPanel").hidden};
+$("closeVariables").onclick=()=>{$("variablesPanel").hidden=true};
 $("modalClose").onclick=$("modalCancel").onclick=()=>{$("modal").hidden=true};
 $("starterExample").onclick=example;
  $("loadTemplate").onclick=openTemplates;
