@@ -480,6 +480,14 @@ function compile(inputNodes,inputLinks,inputVars,className){
   report("Add On Start, On Update, or On Fixed Update so the generated script has an entry point.");
   methods.push("    private void Start()","    {","    }","");
  }
+ const functionNodes=nodes.filter(n=>n.type==="functionstart");
+ functionNodes.forEach(fn=>{
+  const method=safeIdentifier(fn.values?.name||"MyFunction","MyFunction",new Set())+"_"+fn.id;
+  methods.push("    private void "+method+"()","    {");
+  const next=connected(fn.id,"Then");
+  if(next)methods.push(...emitFlow(next,2,new Set([fn.id])));
+  methods.push("    }","");
+ });
  if(extraMethods.length)methods.push(...extraMethods);
  const referencedTypes=[...vars.map(v=>String(v.type||"")), ...nodes.map(n=>String(n.values?.componentType||"")), ...nodes.map(n=>String(n.values?.property||"")), ...nodes.filter(n=>n.type==="setcomponent").map(n=>propertyType(n.values?.componentType||"HingeJoint",n.values?.property||"limits"))];
  const hasType=(...types)=>referencedTypes.some(t=>types.includes(t));
