@@ -198,3 +198,14 @@ button:active{transform:translateY(1px)}
 .import-progress-track span{display:block;width:0;height:100%;border-radius:99px;background:linear-gradient(90deg,#6e8ff5,#79e0c2);box-shadow:0 0 18px #789aff66;transition:width .12s ease}
 .import-progress-numbers{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:#e0e8ff;font-size:12px;font-variant-numeric:tabular-nums}
 .import-progress-sub{margin-bottom:0!important;font-size:10px!important;color:#8292ad!important}
+
+.import-report-card{width:min(650px,100%);max-height:min(82dvh,850px);display:flex;flex-direction:column;text-align:left}
+.import-report-card>.import-progress-mark{margin-left:0}
+.import-report-card>strong{font-size:18px}
+.import-report-card>p{flex:none}
+.import-report-list{min-height:0;overflow:auto;padding:9px;margin:0 0 14px;border:1px solid #34415a;border-radius:10px;background:#0b111c}
+.import-report-item{padding:9px 7px;border-bottom:1px solid #273248;color:#d8e2f5;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.import-report-item:last-child{border-bottom:0}
+.import-report-actions{display:flex;gap:10px;flex:none}
+.import-report-actions button{flex:1;padding:11px;border:1px solid #6078b1;border-radius:9px;background:#293a5b;color:#f5f7ff;font-weight:800;cursor:pointer}
+.import-report-actions button:last-child{background:#202938;border-color:#3b475c}
