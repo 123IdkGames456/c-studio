@@ -595,7 +595,7 @@ async function importCSharp(source,fileName){
  const classMatch=clean.match(/\bclass\s+([A-Za-z_]\w*)/);
  const className=classMatch?.[1]||String(fileName||"ImportedScript").replace(/\.cs$/i,"").replace(/[^A-Za-z0-9_]/g,"")||"ImportedScript";
  const methods=[];
- const methodRe=/\b(?:public|private|protected|internal|static|virtual|override|async|sealed|new|\s)*\s*(?:void|IEnumerator|Task)\s+(Start|Update|FixedUpdate|LateUpdate|Awake|OnEnable|OnDisable|OnDestroy|OnTriggerEnter|OnTriggerExit|OnCollisionEnter|OnCollisionExit)\s*\([^)]*\)\s*\{/g;
+ const methodRe=/\b(?:public|private|protected|internal|static|virtual|override|async|sealed|new|\s)*\s*(?:void|IEnumerator|Task)\s+(Start|Update|FixedUpdate)\s*\([^)]*\)\s*\{/g;
  let mm;
  while((mm=methodRe.exec(clean))){
   const open=clean.indexOf("{",mm.index), bodyStart=open+1;let depth=1,k=bodyStart;
@@ -645,7 +645,7 @@ async function importCSharp(source,fileName){
    if(tr){
     const vals=tr[2].split(",").map(v=>v.trim());
     const vector=spec("vector",360+col*300,baseY,{vectorType:"Vector3",x:vals[0]||"0",y:vals[1]||"0",z:vals[2]||"0"});
-    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localPosition"?"setLocalPosition":tr[1]==="localScale"?"setScale":"setPosition"});
+    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localScale"?"setScale":"setPosition"});
     edge(previous,"Then",set,"Exec","flow");previous=set;col++;
     warnings.push("Converted a transform assignment to a Transform node; check its vector fields.");
     continue;
@@ -679,7 +679,7 @@ async function importCSharp(source,fileName){
  overlay.innerHTML='<div class="import-progress-card"><div class="import-progress-mark">◈</div><strong>Building your Blueprint graph</strong><p id="importProgressText">Reading C#…</p><div class="import-progress-track"><span id="importProgressBar"></span></div><div class="import-progress-numbers"><span id="importProgressCount">0 / '+specs.length+' nodes</span><span id="importProgressPercent">0%</span></div><p class="import-progress-sub">Creating nodes, connecting pins, and organizing the layout.</p></div>';
  document.body.appendChild(overlay);
  const progressText=overlay.querySelector("#importProgressText"),count=overlay.querySelector("#importProgressCount"),bar=overlay.querySelector("#importProgressBar"),percent=overlay.querySelector("#importProgressPercent");
- $("projectName").value=className;nodes=[];links=[];nextNode=1;selectedNode=null;renderAll();
+ $("projectName").value=className;nodes=[];links=[];nextNode=1;nextVariable=variables.length+1;selectedNode=null;renderAll();
  try{
   for(let i=0;i<specs.length;i++){
    const s=specs[i],d=getDef(s.type);
