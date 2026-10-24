@@ -86,6 +86,8 @@ function componentPropertyType(component,property){
  return map[component]?.[property]||"object";
 }
 function actualOutputType(n){
+ if(n?.type==="getfirsttag")return "GameObject";
+ if(n?.type==="getalltag")return "List<GameObject>";
  if(n?.type==="if"){
   const mode=n.values?.branchMode||"Exec";
   if(mode==="Exec")return "none";
