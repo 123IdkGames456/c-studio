@@ -311,6 +311,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   const link=dataLink(n.id,pin);
   if(link)return valueExpr(link.from,seen,expectedType,link.fromPin);
   if((n.type==="vector"||n.type==="literal")&&["x","y","z","w"].includes(pin)&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values?.vectorType||n.values?.type))return typedFallback(n.values?.[pin]??(pin==="w"?"1":"0"),expectedType||"float");
+  if((n.type==="changerotation"||n.type==="changeposition")&&["x","y","z","w"].includes(pin))return typedFallback(n.values?.[pin]??(pin==="w"?"1":"0"),expectedType||"float");
   if(pin==="minimumValue")return typedFallback(n.values?.minimum??"-45","float");
   if(pin==="maximumValue")return typedFallback(n.values?.maximum??"45","float");
   if(pin==="propertyValueInput")return propertyFallback(n);
@@ -377,6 +378,28 @@ function compile(inputNodes,inputLinks,inputVars,className){
       out.push(p+"{",p+"    var "+temp+" = "+(accessType==="dynamic"?"("+target+")":"(("+accessType+")("+target+"))")+";",p+"    if ("+temp+" != null)",p+"    {",p+"        "+temp+"."+prop+" = "+val+";",p+"    }",p+"}");
      });
 
+    }
+   }else if(n.type==="changerotation"){
+    const targetLink=dataLink(n.id,"target");
+    if(!targetLink){valueForInput(n,"target",new Set(),"GameObject");}
+    else{
+     const target=valueExpr(targetLink.from,new Set(),"GameObject",targetLink.fromPin);
+     const x=valueForInput(n,"x",new Set(),"float"),y=valueForInput(n,"y",new Set(),"float"),z=valueForInput(n,"z",new Set(),"float"),w=valueForInput(n,"w",new Set(),"float");
+     const delta="new Quaternion("+x+", "+y+", "+z+", "+w+")";
+     const isLocal=n.values?.space==="local";
+     const rotation=isLocal?"localRotation":"rotation";
+     const updated=isLocal?"("+target+".transform."+rotation+" * "+delta+")":"("+delta+" * "+target+".transform."+rotation+")";
+     out.push(p+"if ("+target+" != null) "+target+".transform."+rotation+" = "+updated+";");
+    }
+   }else if(n.type==="changeposition"){
+    const targetLink=dataLink(n.id,"target");
+    if(!targetLink){valueForInput(n,"target",new Set(),"GameObject");}
+    else{
+     const target=valueExpr(targetLink.from,new Set(),"GameObject",targetLink.fromPin);
+     const x=valueForInput(n,"x",new Set(),"float"),y=valueForInput(n,"y",new Set(),"float"),z=valueForInput(n,"z",new Set(),"float");
+     const offset="new Vector3("+x+", "+y+", "+z+")";
+     const move=n.values?.space==="local"?target+".transform.TransformDirection("+offset+")":offset;
+     out.push(p+"if ("+target+" != null) "+target+".transform.position += "+move+";");
     }
    }else if(n.type==="transform"){
     const op=n.values?.operation||"setPosition",v3Link=dataLink(n.id,"vector"),quaternionLink=dataLink(n.id,"quaternion"),targetLink=dataLink(n.id,"target");
