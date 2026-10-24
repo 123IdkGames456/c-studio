@@ -91,6 +91,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(!n)return "dynamic";
   if(n.type==="getfirsttag")return "GameObject";
   if(n.type==="getalltag")return "List<GameObject>";
+  if(["listelement","listclosest","listfarthest"].includes(n.type))return n.values?.elementType||"GameObject";
   if(n.type==="if"){
    const mode=n.values?.branchMode||"Exec";
    if(mode!=="Exec"&&mode!=="dynamic")return mode;
@@ -214,6 +215,30 @@ function compile(inputNodes,inputLinks,inputVars,className){
   }else if(n.type==="getalltag"){
    expression="new List<GameObject>(GameObject.FindGameObjectsWithTag("+escString(n.values?.tag??"Enemy")+"))";
    sourceType="List<GameObject>";
+  }else if(n.type==="listelement"){
+   const elementType=n.values?.elementType||"GameObject";
+   const list=valueForInput(n,"list",path,"List<"+elementType+">");
+   const index=valueForInput(n,"index",path,"int");
+   expression="("+list+" != null && "+index+" >= 0 && "+index+" < "+list+".Count ? "+list+"["+index+"] : "+typedDefault(elementType)+")";
+   sourceType=elementType;
+  }else if(n.type==="listclosest"||n.type==="listfarthest"){
+   const elementType=n.values?.elementType||"GameObject";
+   const list=valueForInput(n,"list",path,"List<"+elementType+">");
+   const reference=valueForInput(n,"reference",path,elementType);
+   const isFar=n.type==="listfarthest";
+   const distanceFor=(item)=>elementType==="GameObject"?"Vector3.Distance(("+item+").transform.position, ("+reference+").transform.position)":"Vector"+(elementType==="Vector2"?"2":"3")+".Distance("+item+", "+reference+")";
+   const count=list+".Count";
+   if(outputPin==="found"){expression="("+list+" != null && "+count+" > 0)";sourceType="bool";}
+   else if(outputPin==="index"){
+    const op=isFar?">":"<",item=list+"[__i]",best=list+"[__best]";
+    expression="("+list+" != null && "+count+" > 0 ? System.Linq.Enumerable.Aggregate(System.Linq.Enumerable.Range(0, "+count+"), 0, (__best, __i) => "+distanceFor(item)+" "+op+" "+distanceFor(best)+" ? __i : __best) : -1)";
+    sourceType="int";
+   }else{
+    const op=isFar?">":"<",item=list+"[__i]",best=list+"[__best]";
+    const bestIndex="System.Linq.Enumerable.Aggregate(System.Linq.Enumerable.Range(0, "+count+"), 0, (__best, __i) => "+distanceFor(item)+" "+op+" "+distanceFor(best)+" ? __i : __best)";
+    expression="("+list+" != null && "+count+" > 0 ? "+list+"["+bestIndex+"] : "+typedDefault(elementType)+")";
+    sourceType=elementType;
+   }
   }else if(n.type==="self"){
    expression="gameObject";
   }else if(n.type==="getvar"){
