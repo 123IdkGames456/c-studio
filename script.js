@@ -398,7 +398,7 @@ function renderNodes(){
  drawWires();
 }
 let wireDrag=null;
-function canvasPoint(clientX,clientY){const r=$("canvas").getBoundingClientRect(),w=$("workspace");return{x:clientX-r.left+w.scrollLeft,y:clientY-r.top+w.scrollTop}}
+function canvasPoint(clientX,clientY){const r=$("canvas").getBoundingClientRect();return{x:clientX-r.left,y:clientY-r.top}}
 function beginWireDrag(e,node,pin){
  if(e.button!==undefined&&e.button!==0)return;
  if(wireDrag)finishWireDrag(null,true);
