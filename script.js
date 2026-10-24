@@ -137,7 +137,7 @@ function typesCompatible(from,to){
  if(from==="none")return false;
  if(!from||!to||to==="dynamic"||to==="any")return true;
  if(from==="dynamic"||from==="any")return to==="dynamic"||to==="any";
- if(to==="Component"&&BlueprintTypes.unity.includes(from))return true;
+ if((from==="object"||from==="UnityEngine.Object")&&(to==="UnityEngine.Object"||BlueprintTypes.unity.includes(to)&&!BlueprintTypes.isValue(to)))return true;if(to==="UnityEngine.Object"&&BlueprintTypes.unity.includes(from)&&!BlueprintTypes.isValue(from))return true;if(to==="Component"&&BlueprintTypes.unity.includes(from)&&!BlueprintTypes.isValue(from))return true;
  const numeric=["byte","sbyte","short","ushort","int","uint","long","ulong","float","double","decimal","number"];
  if(numeric.includes(from)&&numeric.includes(to))return true;
  if(from==="null")return to==="string"||to==="object"||!BlueprintTypes.isValue(to);
