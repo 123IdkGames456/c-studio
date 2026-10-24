@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101218">
+<title>Unity C# Blueprint Studio</title>
+<link rel="stylesheet" href="style.css?v=component-info-dynamic-5">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../" title="Back to Ikirumi Stuff">◈ <span>UNITY C# <b>BLUEPRINTS</b></span></a>
+  <input id="projectName" class="project-name" value="My Blueprint Project" aria-label="Project name">
+  <div class="top-actions">
+    <button id="newProject">New</button><button id="saveProject">Save</button><button id="loadProject">Load</button><button id="importCSharp">Import C#</button>
+    <button id="exportProject">Export .cs</button><button id="downloadProject">Project JSON</button>
+  </div>
+</header>
+<div class="app">
+  <aside class="sidebar">
+    <div class="panel-title">BLOCK LIBRARY <span id="blockTotal">0</span></div>
+    <input id="blockSearch" class="search" placeholder="Search blocks, plus, +, position..." autocomplete="off">
+    <div id="categories" class="categories"></div>
+    <div id="blockList" class="block-list"></div>
+    <div class="sidebar-help">Click a block to add it. Drag nodes to move them. Drag from an output pin and release near an input to snap to the closest compatible pin.</div>
+  </aside>
+  <main class="main">
+    <div class="workspace-toolbar">
+      <div class="view-tabs"><button id="graphTab" class="view-tab active" type="button">Blueprint Graph</button><button id="csharpTab" class="view-tab" type="button">C# Code</button><span id="graphStatus"> · Ready</span></div>
+      <div class="toolbar-actions"><button id="addVariable">＋ Variable</button><button id="fitGraph">Fit graph</button><button id="clearGraph">Clear graph</button></div>
+    </div>
+    <div id="workspace" class="workspace">
+      <div id="canvas" class="canvas"><svg id="wires" class="wires"></svg><div id="emptyState" class="empty-state"><div class="empty-icon">⌘</div><strong>Build your script with nodes</strong><span>Add an event block, then connect actions and values.</span><button id="starterExample">Load starter example</button></div></div>
+    </div>
+    <section class="code-panel">
+      <div class="code-heading"><div><strong>Generated C#</strong><span id="compileStatus"> · Live preview</span></div><div><button id="copyCode">Copy</button><button id="toggleCode">Hide code</button></div></div>
+      <pre id="codeOutput"></pre>
+    </section>
+  </main>
+  <aside class="inspector">
+    <div class="panel-title">PROJECT VARIABLES <button id="addVariableSide" class="mini-add">＋</button></div>
+    <div class="subtle">Create variables here. Variable blocks use dropdowns, never manually typed names.</div>
+    <div id="variableList" class="variable-list"></div>
+    <div class="inspector-divider"></div>
+    <div class="panel-title">SELECTED NODE</div>
+    <div id="nodeInspector" class="node-inspector"><p class="subtle">Select a node to edit its settings.</p></div>
+    <div class="inspector-divider"></div>
+    <div class="panel-title">DIAGNOSTICS</div>
+    <div id="diagnostics" class="diagnostics">No issues detected.</div>
+  </aside>
+</div>
+<div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-title"><strong id="modalTitle">Create variable</strong><button id="modalClose">×</button></div><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel">Cancel</button><button id="modalConfirm" class="primary">Create</button></div></div></div>
+<input id="fileInput" type="file" accept=".json,application/json" hidden><input id="csharpInput" type="file" accept=".cs,text/plain" hidden>
+<script src="types.js?v=component-catalog-1"></script>
+<script src="blocks.js?v=split-value-vector-color-2"></script>
+<script src="compiler.js?v=direct-component-variable-1"></script>
+<script src="storage.js"></script>
+<script src="script.js?v=value-typed-inputs-2"></script>
+</body>
+</html>
