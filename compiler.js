@@ -337,6 +337,13 @@ function compile(inputNodes,inputLinks,inputVars,className){
    return typedFallback(n.values?.value??"0",expectedType||v?.type||"int");
   }
   if(pin==="value"&&n.type==="fromto")return typedDefault(expectedType||n.values?.fromType||"float");
+  if(n.type==="if"&&(pin==="trueValue"||pin==="falseValue")){
+   const mode=n.values?.branchMode||"Exec";
+   const otherPin=pin==="trueValue"?"falseValue":"trueValue";
+   const otherLink=dataLink(n.id,otherPin);
+   const fallbackType=mode==="dynamic"?(otherLink?nodeType(findNode(otherLink.from)):"int"):mode;
+   return typedDefault(expectedType||fallbackType);
+  }
   if(pin==="a"||pin==="b")return typedDefault(expectedType||"int");
   if((n.type==="transform"&&pin==="target")||(n.type==="gameobject"&&pin==="target")||(n.type==="getcomponent"&&pin==="target")||((n.type==="getcomponentvalue"||n.type==="setcomponent")&&pin==="component")||((n.type==="distance"||n.type==="distance2d")&&(pin==="a"||pin==="b"))){report("Connect the required "+(pin==="target"?"Object":pin==="component"?"Component":"input")+" input on "+(n.type||"node")+".");return expectedType?typedDefault(expectedType):"null";}
   const fallbacks={condition:"false",vector:"Vector3.zero"};
