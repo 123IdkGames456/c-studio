@@ -23,6 +23,13 @@ function connectedComponentType(n){
 function nodeInputs(n){
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
+ if(n?.type==="transform"){
+  const operation=n.values?.operation||"setPosition";
+  const base=(d?.dataIn||[]).filter(p=>p.id==="target");
+  if(operation==="setRotation")return [...base,...(d?.dataIn||[]).filter(p=>p.id==="quaternion")];
+  if(["setPosition","translate","rotate","setScale"].includes(operation))return [...base,...(d?.dataIn||[]).filter(p=>p.id==="vector")];
+  return base;
+ }
  if(n?.type==="vector"){
   const type=n.values?.vectorType||"Vector3";
   return (d?.dataIn||[]).filter(p=>p.id==="x"||p.id==="y"||(p.id==="z"&&!["Vector2"].includes(type))||(p.id==="w"&&["Vector4","Quaternion","Color","Color32"].includes(type)));
