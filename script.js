@@ -445,7 +445,7 @@ function pinPos(nodeId,kind,isOut,pin){
  const el=document.querySelector('.node[data-id="'+nodeId+'"]');if(!el)return null;
  const btn=[...el.querySelectorAll(".pin")].find(p=>p.dataset.kind===kind&&p.dataset.pin===pin&&(p.classList.contains("out")===isOut));if(!btn)return null;
  const r=btn.getBoundingClientRect(),c=$("canvas").getBoundingClientRect();
- return {x:r.left+r.width/2-c.left+$("workspace").scrollLeft,y:r.top+r.height/2-c.top+$("workspace").scrollTop};
+ return {x:r.left+r.width/2-c.left,y:r.top+r.height/2-c.top};
 }
 function drawWires(){
  const svg=$("wires");svg.innerHTML="";
