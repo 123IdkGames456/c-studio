@@ -223,10 +223,21 @@ function compile(inputNodes,inputLinks,inputVars,className){
    sourceType=elementType;
   }else if(n.type==="listclosest"||n.type==="listfarthest"){
    const elementType=n.values?.elementType||"GameObject";
+   const referenceType=n.values?.referenceType||"GameObject";
    const list=valueForInput(n,"list",path,"List<"+elementType+">");
-   const reference=valueForInput(n,"reference",path,elementType);
+   const reference=valueForInput(n,"reference",path,referenceType);
    const isFar=n.type==="listfarthest";
-   const distanceFor=(item)=>elementType==="GameObject"?"Vector3.Distance(("+item+").transform.position, ("+reference+").transform.position)":"Vector"+(elementType==="Vector2"?"2":"3")+".Distance("+item+", "+reference+")";
+   const dimensions=elementType==="Vector2"?2:3;
+   const vectorType=dimensions===2?"Vector2":"Vector3";
+   const toPosition=(expr,type)=>{
+    if(type==="GameObject")return "("+expr+").transform.position";
+    if(type==="Vector2"&&dimensions===3)return "new Vector3(("+expr+").x, ("+expr+").y, 0f)";
+    if(type==="Vector3"&&dimensions===2)return "new Vector2(("+expr+").x, ("+expr+").y)";
+    return expr;
+   };
+   const itemPosition=(item)=>toPosition(item,elementType);
+   const referencePosition=toPosition(reference,referenceType);
+   const distanceFor=(item)=>vectorType+".Distance("+itemPosition(item)+", "+referencePosition+")";
    const count=list+".Count";
    if(outputPin==="found"){expression="("+list+" != null && "+count+" > 0)";sourceType="bool";}
    else if(outputPin==="index"){
