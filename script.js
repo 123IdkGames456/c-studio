@@ -78,7 +78,7 @@ function componentPropertyType(component,property){
  return map[component]?.[property]||"object";
 }
 function actualOutputType(n){
- if(n?.type==="vectorsplit3"||n?.type==="vectorsplit2")return "float";
+ if(n?.type==="vectorsplit3"||n?.type==="vectorsplit2"||n?.type==="quaternionsplit")return "float";
  if(!n)return "dynamic";
  const d=getDef(n.type);
  if(n.type==="literal")return n.values.type==="null"?"null":(n.values.type||"int");
@@ -87,7 +87,7 @@ function actualOutputType(n){
  if(n.type==="getcomponentvalue")return componentPropertyType(n.values.componentType||"Rigidbody",n.values.property||"mass");
  if(n.type==="literal"&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values.type))return n.values.type;
  if(n.type==="math")return n.values.outputType||"float";
- if(n.type==="vectorsplit3"||n.type==="vectorsplit2")return "dynamic";
+ if(n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit")return "dynamic";
  if(n.type==="vectorcombine3")return "Vector3";
  if(n.type==="vectorcombine2")return "Vector2";
  if(n.type==="fromto")return n.values.toType||"string";
@@ -102,6 +102,7 @@ function actualOutputType(n){
 function expectedInputType(n,p){
  if(!n||!p)return "dynamic";
  if((n.type==="vectorsplit3"||n.type==="vectorsplit2")&&p.id==="vector")return n.type==="vectorsplit3"?"Vector3":"Vector2";
+  if(n.type==="quaternionsplit"&&p.id==="quaternion")return "Quaternion";
  if(n.type==="fromto"&&p.id==="value")return n.values.fromType||"float";
  if(n.type==="math"&&(p.id==="a"||p.id==="b"))return n.values.outputType||"float";
  if((n.type==="distance"||n.type==="distance2d")&&(p.id==="a"||p.id==="b"))return n.values[p.id+"Type"]==="object"?"object":(n.type==="distance2d"?"Vector2":"Vector3");
@@ -288,7 +289,7 @@ function renderNodes(){
     const inputType=displayInputType(n,p),pinType=inputType==="any"?"dynamic":inputType;
     html+='<div class="pin-row input-row"><span class="pin-label"><button class="pin in" data-direction="input" data-kind="data" data-type="'+esc(pinType)+'" data-pin="'+p.id+'" title="Drag to connect input"></button><span class="pin-name">'+esc(p.label)+'</span><span class="pin-type-badge input-type-badge">'+esc(inputType)+'</span></span></div>';
    });
-   if(n.type==="getcomponentvalue"||n.type==="vectorsplit3"||n.type==="vectorsplit2"){
+   if(n.type==="getcomponentvalue"||n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit"){
     const outs=nodeOutputs(n);
     if(n.type==="getcomponentvalue"&&!connectedComponentType(n))html+='<div class="node-description">Connect a typed component to show its properties.</div>';
     outs.forEach(p=>{html+='<div class="pin-row output-row"><span class="output-info"><span class="output-name">'+esc(p.label)+'</span><span class="pin-type-badge output-type-badge">'+esc(p.type)+'</span></span><button class="pin out" data-direction="output" data-kind="data" data-type="'+esc(p.type)+'" data-pin="'+p.id+'" title="Drag to connect '+esc(p.label)+'"></button></div>'})
