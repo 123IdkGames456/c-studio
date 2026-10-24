@@ -588,62 +588,141 @@ function pruneIncompatibleLinks(){
  }
  );
 }
-function importCSharp(source,fileName){
- const clean=String(source||"").replace(/\/\*[\s\S]*?\*\//g,"").replace(/(^|[^:])\/\/.*$/gm,"$1");
+async function importCSharp(source,fileName){
+ const raw=String(source||"");
+ if(!raw.trim()){alert("The C# file is empty.");return}
+ const clean=raw.replace(/\/\*[\s\S]*?\*\//g,"").replace(/(^|[^:])\/\/.*$/gm,"$1");
  const classMatch=clean.match(/\bclass\s+([A-Za-z_]\w*)/);
  const className=classMatch?.[1]||String(fileName||"ImportedScript").replace(/\.cs$/i,"").replace(/[^A-Za-z0-9_]/g,"")||"ImportedScript";
- const hasStart=/\bvoid\s+Start\s*\(/.test(clean),hasUpdate=/\bvoid\s+Update\s*\(/.test(clean);
- const logMatches=[...clean.matchAll(/Debug\.(LogWarning|LogError|Log)\s*\((.*?)\)\s*;/gs)];
- const recognized=logMatches.length>0||hasStart||hasUpdate;
- if(!recognized){alert("This importer currently recognizes Unity Start()/Update() methods and Debug.Log/LogWarning/LogError statements. This file did not contain a supported pattern, so the current graph was kept.");return}
- nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;
- $("projectName").value=className;
- const eventTypes=[];
- if(hasStart||(!hasStart&&!hasUpdate&&logMatches.length))eventTypes.push({type:"start",label:"Start"});
- if(hasUpdate)eventTypes.push({type:"update",label:"Update"});
- let y=70, warnings=[];
- eventTypes.forEach((event,index)=>{
-  const ev=addNode(event.type,70,y);ev.x=70;ev.y=y;
-  let previous=ev;
-  const methodMatch=clean.match(new RegExp("\\bvoid\\s+"+event.label+"\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\s*\\}"));
-  const body=methodMatch?.[1]||"";
-  const logs=[...body.matchAll(/Debug\.(LogWarning|LogError|Log)\s*\((.*?)\)\s*;/gs)];
-  logs.forEach((m,i)=>{
-   const expr=m[2].trim(), level=m[1]==="LogWarning"?"warning":m[1]==="LogError"?"error":"log";
-   const dbg=addNode("debug",390+i*280,y,{level,message:expr.replace(/^["']|["']$/g,"")});
-   links.push({from:previous.id,fromPin:"Then",to:dbg.id,toPin:"Exec",kind:"flow"});
-   previous=dbg;
-   const mathMatch=expr.match(/^\(?\s*(-?\d+(?:\.\d+)?f?)\s*\)?\s*([+*/%-])\s*\(?\s*(-?\d+(?:\.\d+)?f?)\s*\)?$/);
-   if(mathMatch){
-    const op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[mathMatch[2]];
-    const numericType= /[.f]/i.test(mathMatch[1]+mathMatch[3])?"float":"int";
-    const a=addNode("literal",390+i*280,y+185,{type:numericType,value:mathMatch[1].replace(/f$/i,"")});
-    const b=addNode("literal",390+i*280,y+355,{type:numericType,value:mathMatch[3].replace(/f$/i,"")});
-    const calc=addNode("math",650+i*280,y+245,{operation:op,outputType:numericType});
-    links.push({from:a.id,fromPin:"value",to:calc.id,toPin:"a",kind:"data"},{from:b.id,fromPin:"value",to:calc.id,toPin:"b",kind:"data"},{from:calc.id,fromPin:"value",to:dbg.id,toPin:"value",kind:"data"});
-    dbg.values.message="";
-   }else if(/^["']/.test(expr)){
-    dbg.values.message=expr.slice(1,-1);
-   }else{
-    warnings.push("Could not convert expression: "+expr);
-   }
-  });
-  y+=Math.max(360,logs.length*440);
- });
- if(!hasStart&&!hasUpdate&&logMatches.length){
-  const ev=addNode("start",70,70);
-  let previous=ev;
-  logMatches.forEach((m,i)=>{
-   const expr=m[2].trim(),level=m[1]==="LogWarning"?"warning":m[1]==="LogError"?"error":"log";
-   const dbg=addNode("debug",390+i*280,70,{level,message:/^["']/.test(expr)?expr.slice(1,-1):expr});
-   links.push({from:previous.id,fromPin:"Then",to:dbg.id,toPin:"Exec",kind:"flow"});previous=dbg;
-   if(!/^["']/.test(expr))warnings.push("Imported expression as text because it was outside the supported expression subset: "+expr);
-  });
+ const methods=[];
+ const methodRe=/\b(?:public|private|protected|internal|static|virtual|override|async|sealed|new|\s)*\s*(?:void|IEnumerator|Task)\s+(Start|Update|FixedUpdate|LateUpdate|Awake|OnEnable|OnDisable|OnDestroy|OnTriggerEnter|OnTriggerExit|OnCollisionEnter|OnCollisionExit)\s*\([^)]*\)\s*\{/g;
+ let mm;
+ while((mm=methodRe.exec(clean))){
+  const open=clean.indexOf("{",mm.index), bodyStart=open+1;let depth=1,k=bodyStart;
+  for(;k<clean.length&&depth;k++){if(clean[k]==="{")depth++;else if(clean[k]==="}")depth--;}
+  methods.push({name:mm[1],body:clean.slice(bodyStart,k-1)});
  }
- selectedNode=nodes[0]?.id??null;
- renderAll();
- status("Imported C# · "+nodes.length+" nodes");
- if(warnings.length)alert("Import completed with some expressions left as text:\n\n"+[...new Set(warnings)].slice(0,8).join("\n"));
+ const eventMap={Start:"start",Update:"update",FixedUpdate:"fixed",LateUpdate:"update",Awake:"awake",OnEnable:"onenable",OnDisable:"ondisable",OnDestroy:"ondestroy",OnTriggerEnter:"ontriggerenter",OnTriggerExit:"ontriggerexit",OnCollisionEnter:"oncollisionenter",OnCollisionExit:"oncollisionexit"};
+ const specs=[],edges=[],warnings=[];
+ let sid=1;
+ const spec=(type,x,y,values={})=>{const s={sid:sid++,type,x,y,values};specs.push(s);return s};
+ const edge=(a,ap,b,bp,kind="data")=>edges.push({from:a.sid,fromPin:ap,to:b.sid,toPin:bp,kind});
+ const varMap=new Map();
+ const declarations=[...clean.matchAll(/\b(private|public|protected)?\s*(?:static\s+)?(int|float|double|bool|string|Vector2|Vector3|Vector4|GameObject|Transform|Rigidbody|Rigidbody2D)\s+([A-Za-z_]\w*)\s*(?:=\s*([^;]+))?;/g)];
+ declarations.forEach(m=>{
+  if(varMap.has(m[3]))return;
+  const type=m[2],initial=(m[4]||"").trim();
+  const value=initial.replace(/f\b/g,"").replace(/^["']|["']$/g,"");
+  const v={id:"v"+(varMap.size+1),name:m[3],type,access:m[1]==="public"?"public-inspector":"private-inspector",initial:value||BlueprintTypes.defaultValue(type)};
+  variables.push(v);varMap.set(m[3],v);
+ });
+ let baseY=70;
+ const eventOrder=["Awake","OnEnable","Start","FixedUpdate","Update","LateUpdate","OnTriggerEnter","OnTriggerExit","OnCollisionEnter","OnCollisionExit","OnDisable","OnDestroy"];
+ methods.sort((a,b)=>eventOrder.indexOf(a.name)-eventOrder.indexOf(b.name));
+ if(!methods.length && /\bDebug\.Log(?:Warning|Error)?\s*\(/.test(clean))methods.push({name:"Start",body:clean});
+ for(const method of methods){
+  const ev=spec(eventMap[method.name]||"start",70,baseY);
+  let previous=ev, col=0;
+  const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*\s*=\s*[^;]+);/g)||[];
+  for(const rawStatement of statements){
+   const st=rawStatement.trim().replace(/;$/,"");
+   const log=st.match(/^Debug\.(LogWarning|LogError|Log)\s*\(([\s\S]*)\)$/);
+   if(log){
+    const expr=log[2].trim(),level=log[1]==="LogWarning"?"warning":log[1]==="LogError"?"error":"log";
+    const dbg=spec("debug",360+col*300,baseY,{level,message:/^["']/.test(expr)?expr.slice(1,-1):expr});
+    edge(previous,"Then",dbg,"Exec","flow");previous=dbg;col++;
+    const math=expr.match(/^\(?\s*(-?\d+(?:\.\d+)?f?)\s*\)?\s*([+*/%-])\s*\(?\s*(-?\d+(?:\.\d+)?f?)\s*\)?$/);
+    if(math){
+     const typ=/[.f]/i.test(math[1]+math[3])?"float":"int",op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[math[2]];
+     const a=spec("literal",360+(col-1)*300,baseY+180,{type:typ,value:math[1].replace(/f$/i,"")});
+     const b=spec("literal",360+(col-1)*300,baseY+350,{type:typ,value:math[3].replace(/f$/i,"")});
+     const calc=spec("math",610+(col-1)*300,baseY+260,{operation:op,outputType:typ});
+     edge(a,"value",calc,"a");edge(b,"value",calc,"b");edge(calc,"value",dbg,"value");dbg.values.message="";
+    }else if(!/^["']/.test(expr))warnings.push("Kept Debug expression as text because it needs more parsing: "+expr);
+    continue;
+   }
+   const tr=st.match(/^(?:gameObject\.)?transform\.(position|localPosition|localScale)\s*=\s*new\s+Vector3\s*\(([^)]*)\)$/);
+   if(tr){
+    const vals=tr[2].split(",").map(v=>v.trim());
+    const vector=spec("vector",360+col*300,baseY,{vectorType:"Vector3",x:vals[0]||"0",y:vals[1]||"0",z:vals[2]||"0"});
+    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localPosition"?"setLocalPosition":tr[1]==="localScale"?"setScale":"setPosition"});
+    edge(previous,"Then",set,"Exec","flow");previous=set;col++;
+    warnings.push("Converted a transform assignment to a Transform node; check its vector fields.");
+    continue;
+   }
+   const mathAssign=st.match(/^([A-Za-z_]\w*)\s*=\s*(-?\d+(?:\.\d+)?f?)\s*([+*/%-])\s*(-?\d+(?:\.\d+)?f?)$/);
+   if(mathAssign&&varMap.has(mathAssign[1])){
+    const v=varMap.get(mathAssign[1]),typ=v.type==="int"?"int":"float",op={"+":"add","-":"subtract","*":"multiply","/":"divide","%":"modulo"}[mathAssign[3]];
+    const a=spec("literal",360+col*300,baseY+180,{type:typ,value:mathAssign[2].replace(/f$/i,"")}),b=spec("literal",360+col*300,baseY+350,{type:typ,value:mathAssign[4].replace(/f$/i,"")});
+    const calc=spec("math",610+col*300,baseY+260,{operation:op,outputType:typ}),set=spec("setvar",900+col*300,baseY,{variable:v.id});
+    edge(previous,"Then",set,"Exec","flow");edge(a,"value",calc,"a");edge(b,"value",calc,"b");edge(calc,"value",set,"value");previous=set;col++;continue;
+   }
+   const assignment=st.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/);
+   if(assignment&&varMap.has(assignment[1])){
+    const v=varMap.get(assignment[1]),expr=assignment[2].trim();
+    const set=spec("setvar",360+col*300,baseY,{variable:v.id});
+    edge(previous,"Then",set,"Exec","flow");previous=set;col++;
+    const lit=expr.match(/^(-?\d+(?:\.\d+)?f?|true|false|null|["'][\s\S]*["'])$/);
+    if(lit){
+     const typ=/^(true|false)$/.test(expr)?"bool":/^["']/.test(expr)?"string":expr==="null"?"null":/[.f]/i.test(expr)?"float":"int";
+     const node=spec("literal",360+(col-1)*300,baseY+180,{type:typ,value:expr.replace(/f$/i,"").replace(/^["']|["']$/g,"")});edge(node,"value",set,"value");
+    }else if(varMap.has(expr)){const node=spec("getvar",360+(col-1)*300,baseY+180,{variable:varMap.get(expr).id});edge(node,"value",set,"value");}
+    else warnings.push("Imported assignment to "+v.name+"; expression needs manual conversion: "+expr);
+    continue;
+   }
+   if(st.trim())warnings.push("Skipped unsupported statement: "+st.slice(0,90));
+  }
+  baseY+=Math.max(420,(col+1)*90);
+ }
+ if(!specs.length){alert("No supported Unity methods or statements were found. The existing graph was kept.");return}
+ const overlay=document.createElement("div");overlay.id="importProgress";overlay.className="import-progress";
+ overlay.innerHTML='<div class="import-progress-card"><div class="import-progress-mark">◈</div><strong>Building your Blueprint graph</strong><p id="importProgressText">Reading C#…</p><div class="import-progress-track"><span id="importProgressBar"></span></div><div class="import-progress-numbers"><span id="importProgressCount">0 / '+specs.length+' nodes</span><span id="importProgressPercent">0%</span></div><p class="import-progress-sub">Creating nodes, connecting pins, and organizing the layout.</p></div>';
+ document.body.appendChild(overlay);
+ const progressText=overlay.querySelector("#importProgressText"),count=overlay.querySelector("#importProgressCount"),bar=overlay.querySelector("#importProgressBar"),percent=overlay.querySelector("#importProgressPercent");
+ $("projectName").value=className;nodes=[];links=[];nextNode=1;selectedNode=null;renderAll();
+ try{
+  for(let i=0;i<specs.length;i++){
+   const s=specs[i],d=getDef(s.type);
+   if(d){
+    const n={id:nextNode++,type:s.type,x:s.x,y:s.y,values:{}};
+    (d.fields||[]).forEach(f=>n.values[f.id]=s.values[f.id]??f.default??(f.options?f.options[0][0]:""));
+    Object.assign(n.values,s.values||{});nodes.push(n);
+   }
+   if(i%3===0||i===specs.length-1){
+    const done=Math.min(i+1,specs.length),pct=Math.round(done/specs.length*100);
+    count.textContent=done+" / "+specs.length+" nodes";bar.style.width=pct+"%";percent.textContent=pct+"%";
+    progressText.textContent=done===specs.length?"Connecting pins and organizing…":"Placing nodes…";
+    renderNodes();drawWires();drawGraphOverview();
+    await new Promise(resolve=>setTimeout(resolve,12));
+   }
+  }
+  const idMap=new Map(specs.map((s,i)=>[s.sid,i+1]));
+  edges.forEach(e=>{const from=nodes[idMap.get(e.from)-1],to=nodes[idMap.get(e.to)-1];if(from&&to)links.push({from:from.id,fromPin:e.fromPin,to:to.id,toPin:e.toPin,kind:e.kind});});
+  progressText.textContent="Connecting pins…";renderAll();await new Promise(resolve=>setTimeout(resolve,100));
+  const byId=new Map(nodes.map(n=>[n.id,n]));
+  const outgoing=new Map();
+  links.filter(l=>l.kind==="flow").forEach(l=>{if(!outgoing.has(l.from))outgoing.set(l.from,[]);outgoing.get(l.from).push(l.to)});
+  const visited=new Set();let lane=0;
+  nodes.filter(n=>getDef(n.type)?.kind==="event").forEach(event=>{
+   let current=event,depth=0;
+   while(current&&!visited.has(current.id)&&depth<100){
+    visited.add(current.id);current.x=70+depth*320;current.y=70+lane*600;
+    const dataChildren=links.filter(l=>l.kind==="data"&&l.to===current.id).map(l=>byId.get(l.from)).filter(Boolean);
+    dataChildren.forEach((n,i)=>{if(!visited.has(n.id)){n.x=current.x-35+i*210;n.y=current.y+260+i*135;visited.add(n.id)}});
+    const next=(outgoing.get(current.id)||[]).map(id=>byId.get(id)).find(n=>n&&!visited.has(n.id));current=next;depth++;
+   }
+   lane++;
+  });
+  nodes.forEach((n,i)=>{if(!visited.has(n.id)){n.x=70+(i%4)*320;n.y=70+lane*600+Math.floor(i/4)*260;}}); 
+  const minX=Math.min(...nodes.map(n=>n.x)),minY=Math.min(...nodes.map(n=>n.y));
+  nodes.forEach(n=>{n.x+=70-minX;n.y+=70-minY});
+  selectedNode=nodes[0]?.id??null;
+  progressText.textContent="Final layout complete";count.textContent=nodes.length+" / "+nodes.length+" nodes";bar.style.width="100%";percent.textContent="100%";
+  renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});
+  await new Promise(resolve=>setTimeout(resolve,220));overlay.remove();
+  status("Imported C# · "+nodes.length+" nodes");
+  if(warnings.length)alert("Import completed. Some code needs manual conversion or review:\n\n"+[...new Set(warnings)].slice(0,10).join("\n"));
+ }catch(err){overlay.remove();renderAll();throw err;}
 }
 function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
