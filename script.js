@@ -661,7 +661,7 @@ async function importCSharp(source,fileName){
    if(tr){
     const vals=tr[2].split(",").map(v=>v.trim());
     const vector=spec("vector",360+col*300,baseY,{vectorType:"Vector3",x:vals[0]||"0",y:vals[1]||"0",z:vals[2]||"0"});
-    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localScale"?"setScale":"setPosition"});
+    const set=spec("transform",610+col*300,baseY,{operation:tr[1]==="localScale"?"setScale":tr[1]==="localPosition"?"setLocalPosition":"setPosition"});
     edge(previous,"Then",set,"Exec","flow");previous=set;col++;
     warnings.push("Converted a transform assignment to a Transform node; check its vector fields.");
     continue;
