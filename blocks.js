@@ -1,5 +1,7 @@
 window.BlueprintBlocks = (() => {
 const defs=[
+{id:"functionstart",name:"Function Entry",category:"Functions",color:"#bd9aff",kind:"flow",desc:"Defines a reusable C# method. Connect Then to the function body; call it with Call Function.",aliases:["function","method","function entry","create function"],flowOut:["Then"],fields:[{id:"name",label:"Method name",type:"text",default:"MyFunction"}]},
+{id:"callfunction",name:"Call Function",category:"Functions",color:"#bd9aff",kind:"flow",desc:"Calls a Function Entry node as a real C# method.",aliases:["call method","run function","execute function"],flowIn:["Exec"],flowOut:["Then"],fields:[{id:"functionId",label:"Function",type:"function"}]},
 {id:"start",name:"On Start",category:"Events",color:"#e6b765",kind:"event",desc:"Runs once when this component starts.",aliases:["begin","start","awake","on start","when game starts"],flowOut:["Then"]},
 {id:"update",name:"On Update",category:"Events",color:"#e6b765",kind:"event",desc:"Runs once per rendered frame.",aliases:["tick","every frame","update"],flowOut:["Then"]},
 {id:"fixed",name:"On Fixed Update",category:"Events",color:"#e6b765",kind:"event",desc:"Runs on the physics timestep.",aliases:["physics update","fixed update"],flowOut:["Then"]},
