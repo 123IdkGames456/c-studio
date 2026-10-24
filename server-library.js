@@ -62,6 +62,46 @@
     };
     document.head.appendChild(script);
   }
+
+  window.addEventListener("cstudio:publish-script", event => {
+    const local = event.detail?.entry;
+    if (!local?.project) return;
+    const password = prompt("Enter the server library password to publish this script:");
+    if (password === null) return;
+    if (!password) { alert("A server password is required."); return; }
+    const serverEntry = {
+      name: String(local.name || local.project.projectName || "Untitled script"),
+      type: "node",
+      payload: JSON.stringify(local.project),
+      createdAt: new Date().toISOString()
+    };
+    let frame = document.getElementById("cstudio-publish-frame");
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.id = "cstudio-publish-frame";
+      frame.name = "cstudio-publish-frame";
+      frame.hidden = true;
+      document.body.appendChild(frame);
+    }
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = SERVER_LIBRARY_URL;
+    form.target = frame.name;
+    form.hidden = true;
+    const fields = { action: "save", entry: JSON.stringify(serverEntry), password };
+    Object.entries(fields).forEach(([name, value]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    alert("Publish request sent for \"" + serverEntry.name + "\". If the server has not been updated to accept POST action=save, it will not be stored. Refresh Explore after the server endpoint is updated.");
+  });
+
   $("libraryLocalTab")?.addEventListener("click", () => setTab("local"));
   $("libraryExploreTab")?.addEventListener("click", () => setTab("explore"));
   $("refreshExplore")?.addEventListener("click", loadServerEntries);
