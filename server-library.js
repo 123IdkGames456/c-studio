@@ -1,5 +1,5 @@
 (() => {
-  const SERVER_LIBRARY_URL = "https://script.google.com/macros/s/AKfycbxxDajYY3c8xNAIHKoL1yzKlBXn_aw7XRjrEwh8YF9TbNn4UVYf8VrC8FEJYr5UeiKbrw/exec";
+  const SERVER_LIBRARY_URL = "https://script.google.com/macros/s/AKfycbwe-rMMhIV3NG87u3UfqjXk_zbt4eT9QA_SgQZqqYCRK727OAYKh45DUQIihmxoNMCaew/exec";
   const $ = id => document.getElementById(id);
   let serverEntries = [];
   let requestNumber = 0;
