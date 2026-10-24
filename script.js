@@ -866,7 +866,7 @@ $("saveProject").onclick=()=>{try{BlueprintStorage.save(snapshot());status("Save
 $("loadProject").onclick=()=>{const s=BlueprintStorage.load();if(s)loadState(s);else $("fileInput").click()};
 $("fileInput").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{loadState(JSON.parse(await f.text()));status("Project loaded")}catch(err){alert("Invalid project JSON.")}e.target.value=""};
 $("importCSharp").onclick=()=>$("csharpInput").click();
-$("csharpInput").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{importCSharp(await f.text(),f.name)}catch(err){alert("Could not import this C# file: "+err.message)}e.target.value=""};
+$("csharpInput").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{await importCSharp(await f.text(),f.name)}catch(err){alert("Could not import this C# file: "+err.message)}e.target.value=""};
 $("downloadProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safeName($("projectName").value)+".json",BlueprintStorage.snapshot(snapshot()),"application/json");
 $("exportProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safeName($("projectName").value)+".cs",$("codeOutput").textContent,"text/plain");
 $("copyCode").onclick=async()=>{try{await navigator.clipboard.writeText($("codeOutput").textContent);status("C# copied")}catch(e){const r=document.createRange();r.selectNodeContents($("codeOutput"));const s=getSelection();s.removeAllRanges();s.addRange(r);status("Select and copy the code")}};
