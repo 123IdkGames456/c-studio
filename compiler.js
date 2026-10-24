@@ -89,6 +89,14 @@ function compile(inputNodes,inputLinks,inputVars,className){
  const propertyType=(component,property)=>properties[component]?.[property]||"object";
  function nodeType(n){
   if(!n)return "dynamic";
+  if(n.type==="if"){
+   const mode=n.values?.branchMode||"Exec";
+   if(mode!=="Exec"&&mode!=="dynamic")return mode;
+   if(mode==="dynamic"){
+    const yes=dataLink(n.id,"trueValue"),no=dataLink(n.id,"falseValue");
+    return nodeType(yes?findNode(yes.from):no?findNode(no.from):null);
+   }
+  }
   if(n.type==="literal")return n.values?.type==="null"?"null":(n.values?.type||"int");
   if(n.type==="getvar")return findVar(n.values?.variable)?.type||"dynamic";
   if(n.type==="self")return "GameObject";
@@ -258,6 +266,12 @@ function compile(inputNodes,inputLinks,inputVars,className){
     const ops={add:"+",subtract:"-",multiply:"*",divide:"/",modulo:"%"};
     expression="("+a+" "+(ops[op]||"+")+" "+b+")";
    }
+  }else if(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"){
+   const condition=valueForInput(n,"condition",path,"bool");
+   const trueValue=valueForInput(n,"trueValue",path,n.values.branchMode==="dynamic"?null:n.values.branchMode);
+   const falseValue=valueForInput(n,"falseValue",path,n.values.branchMode==="dynamic"?null:n.values.branchMode);
+   sourceType=n.values.branchMode==="dynamic"?nodeType(n):n.values.branchMode;
+   expression="("+condition+" ? "+trueValue+" : "+falseValue+")";
   }else if(n.type==="compare"){
    const type=n.values?.operandType||"float",op=n.values?.operation||"eq";
    const a=valueForInput(n,"a",path,type),b=valueForInput(n,"b",path,type);
@@ -449,7 +463,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
     }
     out.push(p+"if (!"+flag+") StartCoroutine("+method+"());");
     break;
-   }else if(n.type==="if"){
+   }else if(n.type==="if"&&(n.values?.branchMode||"Exec")==="Exec"){
     const cond=valueForInput(n,"condition",new Set(),"bool");
     out.push(p+"if ("+cond+")",p+"{");
     const t=connected(n.id,"True");if(t)out.push(...emitFlow(t,indent+1,new Set(visited)));
