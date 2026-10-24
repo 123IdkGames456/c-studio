@@ -99,6 +99,7 @@ function expectedInputType(n,p){
  if(!n||!p)return "dynamic";
  if(n.type==="fromto"&&p.id==="value")return n.values.fromType||"float";
  if(n.type==="math"&&(p.id==="a"||p.id==="b"))return n.values.outputType||"float";
+ if((n.type==="distance"||n.type==="distance2d")&&(p.id==="a"||p.id==="b"))return n.values[p.id+"Type"]==="object"?"object":(n.type==="distance2d"?"Vector2":"Vector3");
  if(n.type==="compare"&&(p.id==="a"||p.id==="b"))return n.values.operandType||"float";
  if(n.type==="setvar"&&p.id==="value")return getVar(n.values.variable)?.type||"dynamic";
  if(n.type==="setcomponent"){
@@ -305,7 +306,7 @@ function renderNodes(){
     const componentField=field.startsWith("use_")&&n.type==="setcomponent";
     const rebuildNode=componentField||field==="component"||field==="componentVariable";
     const operationChangesOutput=field==="operation"&&["transform","gameobject"].includes(n.type);
-    const pinTypeChange=["type","variable","componentType","fromType","toType","outputType","operandType","vectorType"].includes(field)||operationChangesOutput;
+    const pinTypeChange=["type","variable","componentType","fromType","toType","outputType","operandType","vectorType","aType","bType"].includes(field)||operationChangesOutput;
     if(pinTypeChange||rebuildNode){
      removeIncompatibleLinksForOutput(n.id);
      removeIncompatibleLinksForInput(n.id);
