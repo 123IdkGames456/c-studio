@@ -97,8 +97,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(n.type==="literal"&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values?.type))return n.values.type;
   if(n.type==="math")return n.values?.outputType||"float";
   if(n.type==="distance"||n.type==="distance2d")return "float";
-  if(n.type==="vectorsplit3"||n.type==="vectorsplit2")return "dynamic";
+  if(n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit")return "dynamic";
   if(n.type==="vectorcombine3")return "Vector3";
+  if(n.type==="quaternioncombine")return "Quaternion";
   if(n.type==="vectorcombine2")return "Vector2";
   if(n.type==="fromto")return n.values?.toType||"string";
   if(n.type==="vector")return n.values?.vectorType||"Vector3";
@@ -213,17 +214,19 @@ function compile(inputNodes,inputLinks,inputVars,className){
     const inputLink=dataLink(n.id,"component"),source=inputLink?findNode(inputLink.from):null,ct=source?.type==="getcomponent"?(source.values?.componentType||"Rigidbody"):source?.type==="getvar"?(findVar(source.values?.variable)?.type||"Component"):"Component";
     sourceType=propertyType(ct,prop);
     expression=ct==="Component"?"((dynamic)("+target+"))."+prop:"(("+ct+")("+target+"))."+prop;
-   }else if(n.type==="vectorsplit3"||n.type==="vectorsplit2"){
-   const vectorType=n.type==="vectorsplit3"?"Vector3":"Vector2";
-   const vector=valueForInput(n,"vector",path,vectorType);
-   const axis=["x","y","z"].includes(outputPin)?outputPin:"x";
+   }else if(n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit"){
+   const isQuaternion=n.type==="quaternionsplit";
+   const vectorType=isQuaternion?"Quaternion":n.type==="vectorsplit3"?"Vector3":"Vector2";
+   const inputPin=isQuaternion?"quaternion":"vector";
+   const vector=valueForInput(n,inputPin,path,vectorType);
+   const axis=(isQuaternion?["x","y","z","w"]:n.type==="vectorsplit3"?["x","y","z"]:["x","y"]).includes(outputPin)?outputPin:"x";
    sourceType="float";
    expression="("+vector+")."+axis;
-  }else if(n.type==="vectorcombine3"||n.type==="vectorcombine2"){
-   const is2D=n.type==="vectorcombine2";
+  }else if(n.type==="vectorcombine3"||n.type==="vectorcombine2"||n.type==="quaternioncombine"){
+   const is2D=n.type==="vectorcombine2",isQuaternion=n.type==="quaternioncombine";
    const x=valueForInput(n,"x",path,"float"),y=valueForInput(n,"y",path,"float");
-   const args=is2D?[x,y]:[x,y,valueForInput(n,"z",path,"float")];
-   sourceType=is2D?"Vector2":"Vector3";
+   const args=is2D?[x,y]:isQuaternion?[x,y,valueForInput(n,"z",path,"float"),valueForInput(n,"w",path,"float")]:[x,y,valueForInput(n,"z",path,"float")];
+   sourceType=isQuaternion?"Quaternion":is2D?"Vector2":"Vector3";
    expression="new "+sourceType+"("+args.join(", ")+")";
   }else if(n.type==="distance"||n.type==="distance2d"){
    const is2D=n.type==="distance2d";
@@ -268,8 +271,14 @@ function compile(inputNodes,inputLinks,inputVars,className){
    expression=op==="not"?"!("+a+")":"("+a+" "+({and:"&&",or:"||",xor:"^"}[op]||"&&")+" "+b+")";
   }else if(n.type==="transform"){
    const op=n.values?.operation||"setPosition",link=dataLink(n.id,"target");
-   if(!link){valueForInput(n,"target",path,"GameObject");expression=typedDefault(nodeType(n));}
-   else{const target=valueExpr(link.from,new Set(path),"GameObject",link.fromPin)+".transform";expression=op==="getPosition"?target+".position":op==="getRotation"?target+".rotation":op==="getScale"?target+".localScale":typedDefault("Vector3");}
+   if(!link){valueForInput(n,"target",path,"GameObject");sourceType=outputPin==="rotationQuaternion"?"Quaternion":"Vector3";expression=typedDefault(sourceType);}
+   else{const target=valueExpr(link.from,new Set(path),"GameObject",link.fromPin)+".transform";
+    if(op==="getPosition"){sourceType="Vector3";expression=target+".position";}
+    else if(op==="getScale"){sourceType="Vector3";expression=target+".localScale";}
+    else if(op==="getRotation"&&outputPin==="rotationQuaternion"){sourceType="Quaternion";expression=target+".rotation";}
+    else if(op==="getRotation"){sourceType="Vector3";expression=target+".eulerAngles";}
+    else {sourceType=outputPin==="rotationQuaternion"?"Quaternion":"Vector3";expression=typedDefault(sourceType);}
+   }
    if(!["getPosition","getRotation","getScale"].includes(op))report("A Transform setter cannot be used as a value output.");
   }else if(n.type==="gameobject"&&(n.values?.operation||"setActive")==="instantiate"){
    expression=spawnedNames.get(n.id)||("__blueprintSpawned_"+n.id);
@@ -370,11 +379,14 @@ function compile(inputNodes,inputLinks,inputVars,className){
 
     }
    }else if(n.type==="transform"){
-    const op=n.values?.operation||"setPosition",v=valueForInput(n,"vector",new Set(),"Vector3"),targetLink=dataLink(n.id,"target");
+    const op=n.values?.operation||"setPosition",v3Link=dataLink(n.id,"vector"),quaternionLink=dataLink(n.id,"quaternion"),targetLink=dataLink(n.id,"target");
     if(!targetLink){valueForInput(n,"target",new Set(),"GameObject");}
     else{
      const target=valueExpr(targetLink.from,new Set(),"GameObject",targetLink.fromPin),transform=target+".transform";
-     const code={setPosition:transform+".position = "+v+";",translate:transform+".Translate("+v+" * Time.deltaTime);",rotate:transform+".Rotate("+v+" * Time.deltaTime);",setRotation:transform+".rotation = Quaternion.Euler("+v+");",setScale:transform+".localScale = "+v+";"};
+     const v=valueForInput(n,"vector",new Set(),"Vector3"),quaternion=valueForInput(n,"quaternion",new Set(),"Quaternion");
+     const rotationValue=quaternionLink?quaternion:"Quaternion.Euler("+v+")";
+     const code={setPosition:transform+".position = "+v+";",translate:transform+".Translate("+v+" * Time.deltaTime);",rotate:transform+".Rotate("+v+" * Time.deltaTime);",setRotation:transform+".rotation = "+rotationValue+";",setScale:transform+".localScale = "+v+";"};
+     if(op==="setRotation"&&!quaternionLink&&!v3Link)report("Connect a Vector3 or Quaternion input to Set Rotation.");
      if(code[op])out.push(p+"if ("+target+" != null) "+code[op]);
     }
    }else if(n.type==="gameobject"){
