@@ -95,6 +95,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(n.type==="getcomponentvalue")return propertyType(n.values?.componentType||"Rigidbody",n.values?.property||"mass");
   if(n.type==="literal"&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values?.type))return n.values.type;
   if(n.type==="math")return n.values?.outputType||"float";
+  if(n.type==="distance"||n.type==="distance2d")return "float";
   if(n.type==="fromto")return n.values?.toType||"string";
   if(n.type==="vector")return n.values?.vectorType||"Vector3";
   if(n.type==="compare"||n.type==="logic"||n.type==="input")return "bool";
@@ -206,7 +207,12 @@ function compile(inputNodes,inputLinks,inputVars,className){
     const inputLink=dataLink(n.id,"component"),source=inputLink?findNode(inputLink.from):null,ct=source?.type==="getcomponent"?(source.values?.componentType||"Rigidbody"):source?.type==="getvar"?(findVar(source.values?.variable)?.type||"Component"):"Component";
     sourceType=propertyType(ct,prop);
     expression=ct==="Component"?"((dynamic)("+target+"))."+prop:"(("+ct+")("+target+"))."+prop;
-   }else if(n.type==="fromto"){
+   }else if(n.type==="distance"||n.type==="distance2d"){
+   const is2D=n.type==="distance2d";
+   const a=distancePositionExpr(n,"a",path,is2D);
+   const b=distancePositionExpr(n,"b",path,is2D);
+   expression=(is2D?"Vector2.Distance(":"Vector3.Distance(")+a+", "+b+")";
+  }else if(n.type==="fromto"){
    expression=fromToExpression(n,path);
   }else if(n.type==="vector"){
    const type=n.values?.vectorType||"Vector3";
@@ -253,6 +259,25 @@ function compile(inputNodes,inputLinks,inputVars,className){
    expression=typedDefault(expectedType||"int");
   }
   return coerceExpression(expression,sourceType,expectedType,n);
+ }
+ function distancePositionExpr(n,pin,seen,is2D){
+  const mode=n.values?.[pin+"Type"]||"object";
+  const vectorType=is2D?"Vector2":"Vector3";
+  const zero=is2D?"Vector2.zero":"Vector3.zero";
+  const link=dataLink(n.id,pin);
+  if(!link)return mode==="object"?(is2D?"new Vector2(transform.position.x, transform.position.y)":"transform.position"):zero;
+  const source=findNode(link.from);
+  const sourceType=nodeType(source);
+  const expr=valueExpr(link.from,new Set(seen),null,link.fromPin);
+  if(mode===vectorType){
+   if(sourceType!==vectorType){report("Distance input "+pin.toUpperCase()+" is set to "+vectorType+" but receives "+sourceType+".");return zero;}
+   return expr;
+  }
+  const validObject=sourceType==="GameObject"||sourceType==="Transform"||sourceType==="Component"||BlueprintTypes.unity.includes(sourceType);
+  if(!validObject){report("Distance input "+pin.toUpperCase()+" is set to Object / Component but receives "+sourceType+".");return zero;}
+  if(sourceType==="GameObject")return is2D?"new Vector2(("+expr+").transform.position.x, ("+expr+").transform.position.y)":"("+expr+").transform.position";
+  if(sourceType==="Transform")return is2D?"new Vector2(("+expr+").position.x, ("+expr+").position.y)":"("+expr+").position";
+  return is2D?"new Vector2(("+expr+").transform.position.x, ("+expr+").transform.position.y)":"("+expr+").transform.position";
  }
  function valueForInput(n,pin,seen=new Set(),expectedType=null){
   const link=dataLink(n.id,pin);
