@@ -555,6 +555,50 @@ function importCSharp(source,fileName){
 function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode()}
 function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable}}
 function loadState(s){if(!s||!Array.isArray(s.nodes))return;variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
+
+const templates=[
+ {id:"rotate",name:"Rotating Cube",description:"Rotate the object smoothly around its Y axis.",build(){
+  addVariable({name:"RotationSpeed",type:"float",access:"private-inspector",initial:"45f"});
+  const ev=addNode("update",70,90),action=addNode("transform",360,90,{operation:"rotate"}),v=addNode("vector",70,300,{vectorType:"Vector3",x:"0",y:"45",z:"0",w:"0"});
+  links.push({from:ev.id,fromPin:"Then",to:action.id,toPin:"Exec",kind:"flow"},{from:v.id,fromPin:"value",to:action.id,toPin:"vector",kind:"data"});
+ }},
+ {id:"float",name:"Floating Item",description:"Starter graph with adjustable height and speed variables.",build(){
+  addVariable({name:"FloatHeight",type:"float",access:"private-inspector",initial:"0.5f"});
+  addVariable({name:"FloatSpeed",type:"float",access:"private-inspector",initial:"2f"});
+  const ev=addNode("update",70,90),action=addNode("transform",360,90,{operation:"translate"}),v=addNode("vector",70,300,{vectorType:"Vector3",x:"0",y:"0.01",z:"0",w:"0"});
+  links.push({from:ev.id,fromPin:"Then",to:action.id,toPin:"Exec",kind:"flow"},{from:v.id,fromPin:"value",to:action.id,toPin:"vector",kind:"data"});
+ }},
+ {id:"fade",name:"Fade Object",description:"Starter graph with fade speed and a Renderer reference.",build(){
+  addVariable({name:"FadeSpeed",type:"float",access:"private-inspector",initial:"1f"});
+  addVariable({name:"TargetRenderer",type:"Renderer",access:"private-inspector",initial:""});
+  const ev=addNode("update",70,90),log=addNode("debug",360,90,{message:"Fade starter: alpha fading is not yet supported by the node compiler."});
+  links.push({from:ev.id,fromPin:"Then",to:log.id,toPin:"Exec",kind:"flow"});
+ }},
+ {id:"teleport",name:"Teleport on Spawn",description:"Starter graph with On Start and a destination reference.",build(){
+  addVariable({name:"TeleportTarget",type:"Transform",access:"private-inspector",initial:""});
+  const ev=addNode("start",70,90),action=addNode("transform",360,90,{operation:"setPosition"}),v=addNode("vector",70,300,{vectorType:"Vector3",x:"0",y:"0",z:"0",w:"0"});
+  links.push({from:ev.id,fromPin:"Then",to:action.id,toPin:"Exec",kind:"flow"},{from:v.id,fromPin:"value",to:action.id,toPin:"vector",kind:"data"});
+ }}
+];
+function openTemplates(){
+ $("modalTitle").textContent="Load a template";
+ $("modalConfirm").textContent="Cancel";
+ $("modalBody").innerHTML='<div class="subtle">Loading a template replaces the current graph and variables.</div><div class="template-list">'+templates.map(t=>'<button type="button" class="template-choice" data-template="'+t.id+'"><strong>'+esc(t.name)+'</strong><span>'+esc(t.description)+'</span></button>').join("")+'</div>';
+ $("modal").hidden=false;
+ $("modalConfirm").onclick=()=>{$("modal").hidden=true};
+ $("modalBody").querySelectorAll("[data-template]").forEach(button=>button.onclick=()=>{
+  const template=templates.find(t=>t.id===button.dataset.template);
+  if(!template)return;
+  nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;
+  template.build();
+  selectedNode=nodes[0]?.id??null;
+  $("projectName").value=template.name;
+  $("modal").hidden=true;
+  renderAll();
+  status(template.name+" template loaded");
+ });
+}
+
 function example(){
  nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;
  const speed=addVariable({name:"MoveSpeed",type:"float",access:"private-inspector",initial:"5f"});
