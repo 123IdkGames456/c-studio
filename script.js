@@ -645,12 +645,12 @@ function importCSharp(source,fileName){
  status("Imported C# · "+nodes.length+" nodes");
  if(warnings.length)alert("Import completed with some expressions left as text:\n\n"+[...new Set(warnings)].slice(0,8).join("\n"));
 }
-function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode()}
+function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
 let canvasPan=null;
 $("workspace").addEventListener("pointerdown",e=>{
  if(e.button!==0)return;
- if(e.target.closest(".node,button,input,select,textarea,a,.pin,.blueprint-context-menu"))return;
+ if(e.target.closest(".node,button,input,select,textarea,a,.pin,.blueprint-context-menu,.mini-map"))return;
  const workspace=$("workspace");
  canvasPan={x:e.clientX,y:e.clientY,left:workspace.scrollLeft,top:workspace.scrollTop,pointerId:e.pointerId};
  workspace.classList.add("panning");
@@ -664,6 +664,7 @@ $("workspace").addEventListener("pointermove",e=>{
  const maxTop=Math.max(0,workspace.scrollHeight-workspace.clientHeight);
  workspace.scrollLeft=Math.max(0,Math.min(maxLeft,canvasPan.left-(e.clientX-canvasPan.x)));
  workspace.scrollTop=Math.max(0,Math.min(maxTop,canvasPan.top-(e.clientY-canvasPan.y)));
+ drawGraphOverview();
 });
 function stopCanvasPan(e){
  if(!canvasPan||e.pointerId!==canvasPan.pointerId)return;
@@ -672,6 +673,53 @@ function stopCanvasPan(e){
 }
 $("workspace").addEventListener("pointerup",stopCanvasPan);
 $("workspace").addEventListener("pointercancel",stopCanvasPan);
+
+function drawGraphOverview(){
+ const map=$("miniMapCanvas"),ctx=map?.getContext("2d"),workspace=$("workspace"),canvas=$("canvas");
+ if(!map||!ctx||!workspace||!canvas)return;
+ const w=map.width,h=map.height,cw=Math.max(canvas.scrollWidth,canvas.clientWidth,27000),ch=Math.max(canvas.scrollHeight,canvas.clientHeight,27000);
+ ctx.clearRect(0,0,w,h);
+ ctx.fillStyle="#0a101b";ctx.fillRect(0,0,w,h);
+ ctx.strokeStyle="#202d43";ctx.lineWidth=1;
+ for(let x=0;x<w;x+=19){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+ for(let y=0;y<h;y+=19){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+ const sx=w/cw,sy=h/ch;
+ const center=n=>({x:(n.x+129)*sx,y:(n.y+35)*sy});
+ links.forEach(l=>{
+  const a=getNode(l.from),b=getNode(l.to);if(!a||!b)return;
+  const p=center(a),q=center(b);
+  ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);
+  ctx.strokeStyle=l.kind==="flow"?"#8d9bb8":"#718fe0";ctx.lineWidth=1.2;ctx.stroke();
+ });
+ nodes.forEach(n=>{
+  ctx.fillStyle=n.color||getDef(n.type)?.color||"#8fa6e8";
+  ctx.globalAlpha=.9;
+  ctx.fillRect(n.x*sx,n.y*sy,Math.max(3,258*sx),Math.max(2,Math.min(15,42)*sy));
+  ctx.globalAlpha=1;
+ });
+ const vx=workspace.scrollLeft*sx,vy=workspace.scrollTop*sy,vw=workspace.clientWidth*sx,vh=workspace.clientHeight*sy;
+ ctx.fillStyle="#91aaff20";ctx.fillRect(vx,vy,vw,vh);
+ ctx.strokeStyle="#dce5ff";ctx.lineWidth=1.6;ctx.strokeRect(vx,vy,Math.max(2,vw),Math.max(2,vh));
+}
+function moveCameraFromOverview(e){
+ const map=$("miniMapCanvas"),workspace=$("workspace"),canvas=$("canvas");
+ const r=map.getBoundingClientRect(),px=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),py=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));
+ workspace.scrollLeft=Math.max(0,Math.min(workspace.scrollWidth-workspace.clientWidth,px*canvas.scrollWidth-workspace.clientWidth/2));
+ workspace.scrollTop=Math.max(0,Math.min(workspace.scrollHeight-workspace.clientHeight,py*canvas.scrollHeight-workspace.clientHeight/2));
+ drawWires();drawGraphOverview();
+}
+let overviewDragging=false;
+$("miniMapCanvas").addEventListener("pointerdown",e=>{overviewDragging=true;$("miniMapCanvas").setPointerCapture?.(e.pointerId);moveCameraFromOverview(e);e.preventDefault();e.stopPropagation()});
+$("miniMapCanvas").addEventListener("pointermove",e=>{if(!overviewDragging)return;moveCameraFromOverview(e);e.preventDefault()});
+function stopOverviewDrag(){overviewDragging=false}
+$("miniMapCanvas").addEventListener("pointerup",stopOverviewDrag);
+$("miniMapCanvas").addEventListener("pointercancel",stopOverviewDrag);
+$("miniMapToggle").addEventListener("click",()=>{
+ const box=$("miniMap"),min=box.classList.toggle("minimized");
+ $("miniMapToggle").textContent=min?"+":"−";
+ $("miniMapToggle").setAttribute("aria-label",min?"Show mini-map":"Hide mini-map");
+});
+
 function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable}}
 function loadState(s){if(!s||!Array.isArray(s.nodes))return;variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
 
@@ -745,7 +793,7 @@ $("toggleCode").onclick=()=>{codeVisible=!codeVisible;document.querySelector(".c
 $("clearGraph").onclick=()=>{nodes=[];links=[];selectedNode=null;renderAll();status("Graph cleared")};
 $("fitGraph").onclick=()=>{$("workspace").scrollTo({left:0,top:0,behavior:"smooth"});status("Camera reset to top-left")};
 $("projectName").addEventListener("input",renderCode);
-$("workspace").addEventListener("scroll",drawWires);
+$("workspace").addEventListener("scroll",()=>{drawWires();drawGraphOverview()});
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){pendingPin=null;renderNodes()}if((e.key==="Delete"||e.key==="Backspace")&&selectedNode&&!["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName)){nodes=nodes.filter(n=>n.id!==selectedNode);links=links.filter(l=>l.from!==selectedNode&&l.to!==selectedNode);selectedNode=null;renderAll()}});
 renderAll();
 const saved=BlueprintStorage.load();if(saved)loadState(saved);
