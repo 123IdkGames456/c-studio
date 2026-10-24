@@ -120,7 +120,7 @@ function actualOutputType(n){
  return d?.valueOut||"dynamic";
 }
 function expectedInputType(n,p){
- if(["listelement","listclosest","listfarthest"].includes(n.type)){const type=n.values?.elementType||"GameObject";if(p.id==="list")return "List<"+type+">";if(p.id==="index")return "int";if(p.id==="reference")return type;}
+ if(["listelement","listclosest","listfarthest"].includes(n.type)){const type=n.values?.elementType||"GameObject";if(p.id==="list")return "List<"+type+">";if(p.id==="index")return "int";if(p.id==="reference")return n.values?.referenceType||"GameObject";}
  if(!n||!p)return "dynamic";
  if(n.type==="if"&&["trueValue","falseValue"].includes(p.id))return n.values?.branchMode||"dynamic";
  if((n.type==="vectorsplit3"||n.type==="vectorsplit2")&&p.id==="vector")return n.type==="vectorsplit3"?"Vector3":"Vector2";
