@@ -64,7 +64,7 @@ button:active{transform:translateY(1px)}
 .view-tab.active{background:#34456b;border-color:#8099f4;box-shadow:0 0 0 2px #829aff17}
 .toolbar-actions button,.code-heading button{background:#1b2432;border-color:#303c51;border-radius:8px}
 .workspace{background-color:#0b1018;background-image:radial-gradient(#344057 1px,transparent 1px);background-size:22px 22px;overscroll-behavior:contain}
-.canvas{width:2200px;height:1600px}
+.canvas{width:33000px;height:24000px;min-width:33000px;min-height:24000px;background-attachment:scroll}
 .node{width:258px;background:linear-gradient(155deg,#202a3a,#151c28 75%);border:1px solid #3a4962;border-radius:14px;box-shadow:0 13px 32px #0007,0 1px 0 #ffffff08 inset;overflow:visible;transition:border-color .12s ease,box-shadow .12s ease}
 .node.selected{outline:2px solid #9cb1ff;outline-offset:1px;box-shadow:0 0 0 5px #8da7ff16,0 17px 42px #0009}
 .node-head{min-height:42px;gap:10px;padding:12px 13px;border-bottom:1px solid #ffffff12;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 13%,#1a2230),#1a2230 65%);border-radius:13px 13px 0 0;font-size:12px;letter-spacing:.1px}
