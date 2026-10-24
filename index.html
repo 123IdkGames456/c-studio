@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101218">
 <title>Unity C# Blueprint Studio</title>
-<link rel="stylesheet" href="style.css?v=component-info-dynamic-5">
+<link rel="stylesheet" href="style.css?v=templates-four-1">
 </head>
 <body>
 <header class="topbar">
@@ -27,7 +27,7 @@
   <main class="main">
     <div class="workspace-toolbar">
       <div class="view-tabs"><button id="graphTab" class="view-tab active" type="button">Blueprint Graph</button><button id="csharpTab" class="view-tab" type="button">C# Code</button><span id="graphStatus"> · Ready</span></div>
-      <div class="toolbar-actions"><button id="addVariable">＋ Variable</button><button id="fitGraph">Fit graph</button><button id="clearGraph">Clear graph</button></div>
+      <div class="toolbar-actions"><button id="loadTemplate">Load a template</button><button id="addVariable">＋ Variable</button><button id="fitGraph">Fit graph</button><button id="clearGraph">Clear graph</button></div>
     </div>
     <div id="workspace" class="workspace">
       <div id="canvas" class="canvas"><svg id="wires" class="wires"></svg><div id="emptyState" class="empty-state"><div class="empty-icon">⌘</div><strong>Build your script with nodes</strong><span>Add an event block, then connect actions and values.</span><button id="starterExample">Load starter example</button></div></div>
@@ -52,9 +52,9 @@
 <div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-title"><strong id="modalTitle">Create variable</strong><button id="modalClose">×</button></div><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel">Cancel</button><button id="modalConfirm" class="primary">Create</button></div></div></div>
 <input id="fileInput" type="file" accept=".json,application/json" hidden><input id="csharpInput" type="file" accept=".cs,text/plain" hidden>
 <script src="types.js?v=component-catalog-1"></script>
-<script src="blocks.js?v=vector-split-combine-1"></script>
-<script src="compiler.js?v=vector-split-combine-1"></script>
+<script src="blocks.js?v=templates-four-1"></script>
+<script src="compiler.js?v=templates-four-1"></script>
 <script src="storage.js"></script>
-<script src="script.js?v=vector-split-combine-1"></script>
+<script src="script.js?v=templates-four-1"></script>
 </body>
 </html>
