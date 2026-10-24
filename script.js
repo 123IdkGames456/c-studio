@@ -624,6 +624,22 @@ async function importCSharp(source,fileName){
   const ev=spec(eventMap[method.name]||"start",70,baseY);
   let previous=ev, col=0;
   const statements=method.body.match(/(?:Debug\.(?:Log|LogWarning|LogError)\s*\([^;]*\)|(?:gameObject\.)?transform\.(?:position|localPosition|localScale)\s*=\s*[^;]+|(?:gameObject\.)?transform\.(?:Translate|Rotate)\s*\([^;]*\)|[A-Za-z_]\w*\s*=\s*[^;]+);/g)||[];
+  const featureChecks=[
+   [/\\bif\\s*\\(/,"If / else branching"],
+   [/\\b(?:for|foreach|while|do)\\b/,"Loops (for / foreach / while / do)"],
+   [/\\bswitch\\s*\\(/,"Switch statements"],
+   [/\\breturn\\b/,"Return statements and return values"],
+   [/\\b(?:GetComponent|GetComponentInChildren|GetComponentInParent)\\s*<|\\bGetComponent\\s*\\(/,"Get Component calls"],
+   [/\\b(?:Instantiate|Destroy|DestroyImmediate)\\s*\\(/,"Instantiate / Destroy object calls"],
+   [/\\b(?:StartCoroutine|StopCoroutine)\\s*\\(/,"Coroutine calls"],
+   [/\\b(?:Quaternion|Vector2|Vector3|Vector4|Color)\\.(?:Euler|AngleAxis|Lerp|MoveTowards|zero|one|identity)\\b/,"Unity vector / rotation utility expressions"],
+   [/\\b(?:transform|gameObject)\\.(?:rotation|localRotation|forward|right|up|parent|SetParent)\\b/,"Transform rotation / direction / parent operations"],
+   [/(?:\\+=|-=|\\*=|\\/=|\\+\\+|--)/,"Compound assignments and increment / decrement"],
+   [/\\b(?:Input|Time|Physics|Mathf|Random)\\./,"Unity Input / Time / Physics / Mathf / Random API calls"],
+   [/\\b(?:try|catch|throw|yield|await|lock)\\b/,"Exception handling / yield / async operations"],
+   [/\\bnew\\s+(?:List|Dictionary|HashSet)\\s*</,"Collection creation and collection operations"]
+  ];
+  featureChecks.forEach(([re,label])=>{if(re.test(method.body))warnings.push("Needs a node or importer support: "+label+" (in "+method.name+")");});
   for(const rawStatement of statements){
    const st=rawStatement.trim().replace(/;$/,"");
    const log=st.match(/^Debug\.(LogWarning|LogError|Log)\s*\(([\s\S]*)\)$/);
@@ -721,8 +737,22 @@ async function importCSharp(source,fileName){
   renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});
   await new Promise(resolve=>setTimeout(resolve,220));overlay.remove();
   status("Imported C# · "+nodes.length+" nodes");
-  if(warnings.length)alert("Import completed. Some code needs manual conversion or review:\n\n"+[...new Set(warnings)].slice(0,10).join("\n"));
+  if(warnings.length)showImportReport([...new Set(warnings)],className);
  }catch(err){overlay.remove();renderAll();throw err;}
+}
+function showImportReport(items,className){
+ const previous=document.getElementById("importReport");if(previous)previous.remove();
+ const overlay=document.createElement("div");overlay.id="importReport";overlay.className="import-progress";
+ const reportText="C# Blueprint import report\nProject: "+className+"\n\nItems that need a new node or importer support:\n"+items.map((item,i)=>(i+1)+". "+item).join("\n")+"\n\nPlease add these node/importer capabilities to the C# Studio Blueprint editor.";
+ overlay.innerHTML='<div class="import-progress-card import-report-card"><div class="import-progress-mark">!</div><strong>Some code needs new nodes</strong><p>The import worked, but these parts of the C# code could not be fully represented as Blueprint nodes. Copy the full list and send it to ChatGPT so the missing nodes can be added.</p><div class="import-report-list"></div><div class="import-report-actions"><button type="button" id="copyImportReport">Copy all</button><button type="button" id="closeImportReport">Close</button></div><p class="import-progress-sub">The report includes detected unsupported features and statements.</p></div>';
+ const list=overlay.querySelector(".import-report-list");
+ items.forEach((item,i)=>{const row=document.createElement("div");row.className="import-report-item";row.textContent=(i+1)+". "+item;list.appendChild(row)});
+ document.body.appendChild(overlay);
+ overlay.querySelector("#copyImportReport").onclick=async()=>{
+  try{await navigator.clipboard.writeText(reportText);overlay.querySelector("#copyImportReport").textContent="Copied!"}
+  catch(e){const area=document.createElement("textarea");area.value=reportText;area.style.position="fixed";area.style.opacity="0";document.body.appendChild(area);area.select();const ok=document.execCommand("copy");area.remove();overlay.querySelector("#copyImportReport").textContent=ok?"Copied!":"Select report";if(!ok){const fallback=document.createElement("textarea");fallback.value=reportText;fallback.rows=8;fallback.style.width="100%";list.appendChild(fallback);fallback.focus();fallback.select()}}
+ };
+ overlay.querySelector("#closeImportReport").onclick=()=>overlay.remove();
 }
 function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
