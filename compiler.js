@@ -409,6 +409,15 @@ function compile(inputNodes,inputLinks,inputVars,className){
      const move=n.values?.space==="local"?target+".transform.TransformDirection("+offset+")":offset;
      out.push(p+"if ("+target+" != null) "+target+".transform.position += "+move+";");
     }
+   }else if(n.type==="smoothgoto"){
+    const targetLink=dataLink(n.id,"target");
+    const destinationLink=dataLink(n.id,"destination");
+    const target=targetLink?valueExpr(targetLink.from,new Set(),"GameObject",targetLink.fromPin):valueForInput(n,"target",new Set(),"GameObject");
+    const destination=destinationLink?valueExpr(destinationLink.from,new Set(),"Vector3",destinationLink.fromPin):valueForInput(n,"destination",new Set(),"Vector3");
+    const maxDistance=valueForInput(n,"maxDistance",new Set(),"float");
+    if(!targetLink)report("Connect a GameObject to Smooth Go To.");
+    if(!destinationLink)report("Connect a Vector3 destination to Smooth Go To.");
+    out.push(p+"if ("+target+" != null) {",p+"    Vector3 __smoothGoToDestination_"+n.id+" = "+destination+";",p+"    float __smoothGoToMaxDistance_"+n.id+" = Mathf.Max(0f, "+maxDistance+");",p+"    Vector3 __smoothGoToOffset_"+n.id+" = __smoothGoToDestination_"+n.id+" - "+target+".transform.position;",p+"    float __smoothGoToRemaining_"+n.id+" = __smoothGoToOffset_"+n.id+".magnitude;",p+"    if (__smoothGoToRemaining_"+n.id+" > 0f) "+target+".transform.position += __smoothGoToOffset_"+n.id+" / __smoothGoToRemaining_"+n.id+" * Mathf.Min(__smoothGoToMaxDistance_"+n.id+", __smoothGoToRemaining_"+n.id+");",p+"}");
    }else if(n.type==="transform"){
     const op=n.values?.operation||"setPosition",v3Link=dataLink(n.id,"vector"),quaternionLink=dataLink(n.id,"quaternion"),targetLink=dataLink(n.id,"target");
     if(!targetLink){valueForInput(n,"target",new Set(),"GameObject");}
