@@ -568,6 +568,7 @@ $("blockSearch").addEventListener("input",renderBlocks);
 $("addVariable").onclick=$("addVariableSide").onclick=()=>openVariableModal();
 $("modalClose").onclick=$("modalCancel").onclick=()=>{$("modal").hidden=true};
 $("starterExample").onclick=example;
+ $("loadTemplate").onclick=openTemplates;
 $("newProject").onclick=()=>{if(confirm("Create a new project? Unsaved changes in the current graph will be replaced.")){nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value="My Blueprint Project";renderAll();status("New project")}};
 $("saveProject").onclick=()=>{try{BlueprintStorage.save(snapshot());status("Saved locally")}catch(e){alert("Could not save locally: "+e.message)}};
 $("loadProject").onclick=()=>{const s=BlueprintStorage.load();if(s)loadState(s);else $("fileInput").click()};
