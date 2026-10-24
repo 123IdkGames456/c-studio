@@ -660,8 +660,10 @@ $("workspace").addEventListener("pointerdown",e=>{
 $("workspace").addEventListener("pointermove",e=>{
  if(!canvasPan||e.pointerId!==canvasPan.pointerId)return;
  const workspace=$("workspace");
- workspace.scrollLeft=canvasPan.left-(e.clientX-canvasPan.x);
- workspace.scrollTop=canvasPan.top-(e.clientY-canvasPan.y);
+ const maxLeft=Math.max(0,workspace.scrollWidth-workspace.clientWidth);
+ const maxTop=Math.max(0,workspace.scrollHeight-workspace.clientHeight);
+ workspace.scrollLeft=Math.max(0,Math.min(maxLeft,canvasPan.left-(e.clientX-canvasPan.x)));
+ workspace.scrollTop=Math.max(0,Math.min(maxTop,canvasPan.top-(e.clientY-canvasPan.y)));
 });
 function stopCanvasPan(e){
  if(!canvasPan||e.pointerId!==canvasPan.pointerId)return;
