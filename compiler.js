@@ -91,6 +91,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(!n)return "dynamic";
   if(n.type==="literal")return n.values?.type==="null"?"null":(n.values?.type||"int");
   if(n.type==="getvar")return findVar(n.values?.variable)?.type||"dynamic";
+  if(n.type==="self")return "GameObject";
   if(n.type==="getcomponent")return n.values?.componentType||"Rigidbody";
   if(n.type==="getcomponentvalue")return propertyType(n.values?.componentType||"Rigidbody",n.values?.property||"mass");
   if(n.type==="literal"&&["Vector2","Vector3","Vector4","Quaternion","Color","Color32"].includes(n.values?.type))return n.values.type;
@@ -194,6 +195,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
     expression=cleanNumber(raw,literalType);
     sourceType=literalType;
    }else expression=typedFallback(raw,type);
+  }else if(n.type==="self"){
+   expression="gameObject";
   }else if(n.type==="getvar"){
    const v=findVar(n.values?.variable);
    if(!v){report("Choose a variable in Get Variable.");expression=typedDefault(expectedType||"int")}
@@ -264,8 +267,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
    const op=n.values?.operation||"and",a=valueForInput(n,"a",path,"bool"),b=valueForInput(n,"b",path,"bool");
    expression=op==="not"?"!("+a+")":"("+a+" "+({and:"&&",or:"||",xor:"^"}[op]||"&&")+" "+b+")";
   }else if(n.type==="transform"){
-   const op=n.values?.operation||"setPosition";
-   expression=op==="getPosition"?"transform.position":op==="getRotation"?"transform.rotation":op==="getScale"?"transform.localScale":typedDefault("Vector3");
+   const op=n.values?.operation||"setPosition",link=dataLink(n.id,"target");
+   if(!link){valueForInput(n,"target",path,"GameObject");expression=typedDefault(nodeType(n));}
+   else{const target=valueExpr(link.from,new Set(path),"GameObject",link.fromPin)+".transform";expression=op==="getPosition"?target+".position":op==="getRotation"?target+".rotation":op==="getScale"?target+".localScale":typedDefault("Vector3");}
    if(!["getPosition","getRotation","getScale"].includes(op))report("A Transform setter cannot be used as a value output.");
   }else if(n.type==="gameobject"&&(n.values?.operation||"setActive")==="instantiate"){
    expression=spawnedNames.get(n.id)||("__blueprintSpawned_"+n.id);
@@ -280,7 +284,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   const vectorType=is2D?"Vector2":"Vector3";
   const zero=is2D?"Vector2.zero":"Vector3.zero";
   const link=dataLink(n.id,pin);
-  if(!link)return mode==="object"?(is2D?"new Vector2(transform.position.x, transform.position.y)":"transform.position"):zero;
+  if(!link){report("Connect an input to Distance "+pin.toUpperCase()+".");return zero;}
   const source=findNode(link.from);
   const sourceType=nodeType(source);
   const expr=valueExpr(link.from,new Set(seen),null,link.fromPin);
@@ -307,7 +311,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
   }
   if(pin==="value"&&n.type==="fromto")return typedDefault(expectedType||n.values?.fromType||"float");
   if(pin==="a"||pin==="b")return typedDefault(expectedType||"int");
-  const fallbacks={condition:"false",vector:"Vector3.zero",target:"gameObject",component:"null"};
+  if((n.type==="transform"&&pin==="target")||(n.type==="gameobject"&&pin==="target")||(n.type==="getcomponent"&&pin==="target")||((n.type==="getcomponentvalue"||n.type==="setcomponent")&&pin==="component")||((n.type==="distance"||n.type==="distance2d")&&(pin==="a"||pin==="b"))){report("Connect the required "+(pin==="target"?"Object":pin==="component"?"Component":"input")+" input on "+(n.type||"node")+".");return expectedType?typedDefault(expectedType):"null";}
+  const fallbacks={condition:"false",vector:"Vector3.zero"};
   if(fallbacks[pin])return fallbacks[pin];
   if(expectedType)return typedDefault(expectedType);
   return "0";
@@ -345,15 +350,12 @@ function compile(inputNodes,inputLinks,inputVars,className){
     else out.push(p+v.codeName+" = "+valueForInput(n,"value",new Set(),v.type)+";");
    }else if(n.type==="setcomponent"){
     const sourceLink=dataLink(n.id,"component");
-    const selectedVar=findVar(n.values?.componentVariable);
-    if(!sourceLink&&!selectedVar){
-     report("Connect a component or choose a component variable in Set Component Info.");
+    if(!sourceLink){
+     report("Connect a Component input to Set Component Info.");
     }else{
-     const source=sourceLink?findNode(sourceLink.from):null;
-     const ct=source?(source.type==="getcomponent"?(source.values?.componentType||"Rigidbody"):source.type==="getvar"?(findVar(source.values?.variable)?.type||"Component"):"Component"):(selectedVar?.type||"Component");
-     const sourceIsVariable=sourceLink&&source?.type==="getvar";
-     const directVariable=selectedVar||(sourceIsVariable?findVar(source.values?.variable):null);
-     const target=directVariable?.codeName||(sourceLink?valueExpr(sourceLink.from,new Set(),"Component"):"null");
+     const source=findNode(sourceLink.from);
+     const ct=source?.type==="getcomponent"?(source.values?.componentType||"Rigidbody"):source?.type==="getvar"?(findVar(source.values?.variable)?.type||"Component"):"Component";
+     const target=valueExpr(sourceLink.from,new Set(),"Component");
      const available=properties[ct]||{};
      const componentProps=Object.keys(available).filter(prop=>n.values?.["use_"+prop]==="true");
      if(!componentProps.length)report("Enable at least one property supported by the selected component.");
@@ -362,19 +364,19 @@ function compile(inputNodes,inputLinks,inputVars,className){
       if(!Object.prototype.hasOwnProperty.call(available,prop)){report("The "+prop+" property is unavailable for "+ct+";");return}
       const val=valueForInput(n,prop,new Set(),type);
       const accessType=ct==="Component"?"dynamic":ct;
-      if(directVariable){
-       out.push(p+"if ("+target+" != null)",p+"{",p+"    "+target+"."+prop+" = "+val+";",p+"}");
-      }else{
-       const temp="__component_"+n.id+"_"+prop;
-       out.push(p+"{",p+"    var "+temp+" = "+(accessType==="dynamic"?"("+target+")":"(("+accessType+")("+target+"))")+";",p+"    if ("+temp+" != null)",p+"    {",p+"        "+temp+"."+prop+" = "+val+";",p+"    }",p+"}");
-      }
+      const temp="__component_"+n.id+"_"+prop;
+      out.push(p+"{",p+"    var "+temp+" = "+(accessType==="dynamic"?"("+target+")":"(("+accessType+")("+target+"))")+";",p+"    if ("+temp+" != null)",p+"    {",p+"        "+temp+"."+prop+" = "+val+";",p+"    }",p+"}");
      });
 
     }
    }else if(n.type==="transform"){
-    const op=n.values?.operation||"setPosition",v=valueForInput(n,"vector",new Set(),"Vector3");
-    const code={setPosition:"transform.position = "+v+";",translate:"transform.Translate("+v+" * Time.deltaTime);",rotate:"transform.Rotate("+v+" * Time.deltaTime);",setRotation:"transform.rotation = Quaternion.Euler("+v+");",setScale:"transform.localScale = "+v+";"};
-    if(code[op])out.push(p+code[op]);
+    const op=n.values?.operation||"setPosition",v=valueForInput(n,"vector",new Set(),"Vector3"),targetLink=dataLink(n.id,"target");
+    if(!targetLink){valueForInput(n,"target",new Set(),"GameObject");}
+    else{
+     const target=valueExpr(targetLink.from,new Set(),"GameObject",targetLink.fromPin),transform=target+".transform";
+     const code={setPosition:transform+".position = "+v+";",translate:transform+".Translate("+v+" * Time.deltaTime);",rotate:transform+".Rotate("+v+" * Time.deltaTime);",setRotation:transform+".rotation = Quaternion.Euler("+v+");",setScale:transform+".localScale = "+v+";"};
+     if(code[op])out.push(p+"if ("+target+" != null) "+code[op]);
+    }
    }else if(n.type==="gameobject"){
     const target=valueForInput(n,"target",new Set(),"GameObject"),op=n.values?.operation||"setActive";
     if(op==="destroy")out.push(p+"if ("+target+" != null) Destroy("+target+");");
