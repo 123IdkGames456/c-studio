@@ -250,6 +250,14 @@ ParticleSystem:[["loop","Loop"],["playOnAwake","Play On Awake"],["simulationSpee
 const boolProperties=new Set(["useLimits","useMotor","useSpring","autoConfigureConnectedAnchor","configuredInWorldSpace","swapBodies","enableCollision","enablePreprocessing","useGravity","isKinematic","detectCollisions","enableOverlapRecovery","simulated","isTrigger","enabled","loop","playOnAwake","mute","orthographic","isStopped","convex","applyRootMotion","flipX","flipY","receiveShadows"]);
 function fieldHtml(n,f){
  let val=n.values[f.id]??f.default??"";
+ if(["changerotation","changeposition"].includes(n.type)&&["x","y","z","w"].includes(f.id)){
+  const link=links.find(l=>l.kind==="data"&&l.to===n.id&&l.toPin===f.id);
+  if(link){
+   const source=getNode(link.from),sourceDef=getDef(source?.type);
+   const sourceName=sourceDef?.name||"Connected node";
+   return '<div class="node-field connected-value"><span>'+esc(f.label)+'</span><div class="connected-field-value" title="Connected to '+esc(sourceName)+'"><span class="connection-indicator"></span><span>'+esc(sourceName)+'</span><span class="connected-lock">Connected</span></div></div>';
+  }
+ }
  if(n.type==="literal"&&["x","y","z","w"].includes(f.id))return "";
  if(n.type==="vector"){
   const type=n.values.vectorType||"Vector3";
