@@ -150,3 +150,5 @@ button:active{transform:translateY(1px)}
 .node-field.component-toggle input[type="checkbox"]:checked{background:#6c87e8;border-color:#8ba2ff}
 .node-field.component-toggle input[type="checkbox"]:checked::before{transform:translateX(14px);background:#fff}
 .node-field.component-toggle input[type="checkbox"]:focus-visible{outline:2px solid #a7b8ff;outline-offset:2px}
+
+.template-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:14px}.template-choice{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;white-space:normal;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);cursor:pointer}.template-choice:hover{border-color:#7fa8ff;background:#252b39}.template-choice strong{font-size:14px}.template-choice span{font-size:12px;line-height:1.5;color:var(--muted)}
