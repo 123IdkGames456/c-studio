@@ -63,18 +63,68 @@
     document.head.appendChild(script);
   }
 
-  window.addEventListener("cstudio:publish-script", event => {
-    const local = event.detail?.entry;
-    if (!local?.project) return;
-    const password = prompt("Enter the server library password to publish this script:");
-    if (password === null) return;
-    if (!password) { alert("A server password is required."); return; }
+  let pendingPublishEntry = null;
+  let publishRequestId = null;
+  let publishTimeout = null;
+  function showPublishModal(entry) {
+    pendingPublishEntry = entry;
+    $("publishPassword").value = "";
+    $("publishPassword").disabled = false;
+    $("publishSubmit").disabled = false;
+    $("publishCancel").disabled = false;
+    $("publishClose").disabled = false;
+    $("publishForm").hidden = false;
+    $("publishLoading").hidden = true;
+    $("publishStatus").className = "publish-status";
+    $("publishStatus").textContent = "Enter the library password to publish this script.";
+    $("publishSubtitle").textContent = "Publishing: " + String(entry.name || entry.project.projectName || "Untitled script");
+    $("publishModal").hidden = false;
+    setTimeout(() => $("publishPassword").focus(), 30);
+  }
+  function closePublishModal() {
+    if (publishRequestId) return;
+    $("publishModal").hidden = true;
+    pendingPublishEntry = null;
+  }
+  function publishFailure(message, wrongPassword = false) {
+    clearTimeout(publishTimeout);
+    publishRequestId = null;
+    $("publishLoading").hidden = true;
+    $("publishForm").hidden = false;
+    $("publishPassword").disabled = false;
+    $("publishSubmit").disabled = false;
+    $("publishCancel").disabled = false;
+    $("publishClose").disabled = false;
+    $("publishStatus").className = "publish-status error";
+    $("publishStatus").textContent = wrongPassword ? "Incorrect password. Please try again." : message;
+    if (wrongPassword) { $("publishPassword").value = ""; $("publishPassword").focus(); }
+  }
+  function publishSuccess() {
+    clearTimeout(publishTimeout);
+    publishRequestId = null;
+    $("publishModal").hidden = true;
+    pendingPublishEntry = null;
+    $("exploreStatus").textContent = "Script published successfully. Refreshing server library…";
+    loadServerEntries();
+  }
+  function submitPublish(password) {
+    if (!pendingPublishEntry || publishRequestId) return;
+    const local = pendingPublishEntry;
     const serverEntry = {
       name: String(local.name || local.project.projectName || "Untitled script"),
       type: "node",
       payload: JSON.stringify(local.project),
       createdAt: new Date().toISOString()
     };
+    publishRequestId = "cstudio-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    const requestId = publishRequestId;
+    $("publishForm").hidden = true;
+    $("publishLoading").hidden = false;
+    $("publishStatus").className = "publish-status";
+    $("publishStatus").textContent = "";
+    $("publishSubmit").disabled = true;
+    $("publishCancel").disabled = true;
+    $("publishClose").disabled = true;
     let frame = document.getElementById("cstudio-publish-frame");
     if (!frame) {
       frame = document.createElement("iframe");
@@ -88,7 +138,7 @@
     form.action = SERVER_LIBRARY_URL;
     form.target = frame.name;
     form.hidden = true;
-    const fields = { action: "save", entry: JSON.stringify(serverEntry), password };
+    const fields = { action: "save", entry: JSON.stringify(serverEntry), password, requestId };
     Object.entries(fields).forEach(([name, value]) => {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -96,10 +146,44 @@
       input.value = value;
       form.appendChild(input);
     });
+    window.addEventListener("message", function onPublishMessage(event) {
+      const data = event.data;
+      if (event.source !== frame.contentWindow || !data || data.type !== "cstudio-publish-result" || data.requestId !== requestId) return;
+      window.removeEventListener("message", onPublishMessage);
+      if (data.ok === true) publishSuccess();
+      else if (data.code === "WRONG_PASSWORD" || /incorrect.*password|wrong password/i.test(String(data.message || ""))) publishFailure("", true);
+      else publishFailure("The password was accepted, but the server could not save the script. " + String(data.message || "Check the server sheet, permissions, and Apps Script logs."));
+    });
     document.body.appendChild(form);
     form.submit();
     form.remove();
-    alert("Publish request sent for \"" + serverEntry.name + "\". If the server has not been updated to accept POST action=save, it will not be stored. Refresh Explore after the server endpoint is updated.");
+    publishTimeout = setTimeout(() => {
+      if (publishRequestId !== requestId) return;
+      publishFailure("No result came back from the server. Update Code.gs so its save response sends a cstudio-publish-result message, then redeploy the web app.");
+    }, 18000);
+  }
+  window.addEventListener("cstudio:publish-script", event => {
+    const local = event.detail?.entry;
+    if (!local?.project) return;
+    showPublishModal(local);
+  });
+  $("publishForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    const password = $("publishPassword").value;
+    if (!password) {
+      $("publishStatus").className = "publish-status error";
+      $("publishStatus").textContent = "Enter the library password first.";
+      return;
+    }
+    submitPublish(password);
+  });
+  $("publishCancel")?.addEventListener("click", closePublishModal);
+  $("publishClose")?.addEventListener("click", closePublishModal);
+  $("publishModal")?.addEventListener("click", event => {
+    if (event.target === $("publishModal")) closePublishModal();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !$("publishModal").hidden) closePublishModal();
   });
 
   $("libraryLocalTab")?.addEventListener("click", () => setTab("local"));
