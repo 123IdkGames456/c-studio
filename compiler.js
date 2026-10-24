@@ -89,6 +89,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
  const propertyType=(component,property)=>properties[component]?.[property]||"object";
  function nodeType(n){
   if(!n)return "dynamic";
+  if(n.type==="getfirsttag")return "GameObject";
+  if(n.type==="getalltag")return "List<GameObject>";
   if(n.type==="if"){
    const mode=n.values?.branchMode||"Exec";
    if(mode!=="Exec"&&mode!=="dynamic")return mode;
@@ -206,6 +208,12 @@ function compile(inputNodes,inputLinks,inputVars,className){
     expression=cleanNumber(raw,literalType);
     sourceType=literalType;
    }else expression=typedFallback(raw,type);
+  }else if(n.type==="getfirsttag"){
+   expression="GameObject.FindGameObjectWithTag("+escString(n.values?.tag??"Player")+")";
+   sourceType="GameObject";
+  }else if(n.type==="getalltag"){
+   expression="new List<GameObject>(GameObject.FindGameObjectsWithTag("+escString(n.values?.tag??"Enemy")+"))";
+   sourceType="List<GameObject>";
   }else if(n.type==="self"){
    expression="gameObject";
   }else if(n.type==="getvar"){
