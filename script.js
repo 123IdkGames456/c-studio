@@ -182,7 +182,7 @@ const allCategories = ["All", ...BlueprintBlocks.categories];
 function status(s){$("graphStatus").textContent=" · "+s}
 function addNode(type,x,y,values={}) {
  const d=getDef(type); if(!d)return;
- const n={id:nextNode++,type,x:(x??(90+(nodes.length%4)*250))+16390,y:(y??(70+(nodes.length%4)*170))+11920,values:{}};
+ const n={id:nextNode++,type,x:x??(90+(nodes.length%4)*250),y:y??(70+(nodes.length%4)*170),values:{}};
  (d.fields||[]).forEach(f=>n.values[f.id]=values[f.id]??f.default??(f.options?f.options[0][0]:""));
  if(type==="getvar"||type==="setvar") n.values.variable=values.variable??variables[0]?.id??"";
  nodes.push(n);selectedNode=n.id;renderAll();return n;
@@ -594,7 +594,7 @@ function stopCanvasPan(e){
 $("workspace").addEventListener("pointerup",stopCanvasPan);
 $("workspace").addEventListener("pointercancel",stopCanvasPan);
 function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable}}
-function loadState(s){if(!s||!Array.isArray(s.nodes))return;variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});if(nodes.length&&Math.max(...nodes.map(n=>n.x||0))<2200&&Math.max(...nodes.map(n=>n.y||0))<1600)nodes.forEach(n=>{n.x=(n.x||0)+16390;n.y=(n.y||0)+11920});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
+function loadState(s){if(!s||!Array.isArray(s.nodes))return;variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
 
 const templates=[
  {id:"rotate",name:"Rotating Cube",description:"Rotate the object smoothly around its Y axis.",build(){
@@ -664,12 +664,10 @@ $("exportProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safeNa
 $("copyCode").onclick=async()=>{try{await navigator.clipboard.writeText($("codeOutput").textContent);status("C# copied")}catch(e){const r=document.createRange();r.selectNodeContents($("codeOutput"));const s=getSelection();s.removeAllRanges();s.addRange(r);status("Select and copy the code")}};
 $("toggleCode").onclick=()=>{codeVisible=!codeVisible;document.querySelector(".code-panel").classList.toggle("collapsed",!codeVisible);$("codeOutput").hidden=!codeVisible;$("toggleCode").textContent=codeVisible?"Hide code":"Show code"};
 $("clearGraph").onclick=()=>{nodes=[];links=[];selectedNode=null;renderAll();status("Graph cleared")};
-function centerWorkspace(smooth=true){const workspace=$("workspace"),canvas=$("canvas");workspace.scrollTo({left:Math.max(0,(canvas.scrollWidth-workspace.clientWidth)/2),top:Math.max(0,(canvas.scrollHeight-workspace.clientHeight)/2),behavior:smooth?"smooth":"auto"})}
-$("fitGraph").onclick=()=>{centerWorkspace();status("Camera centered on the canvas")};
+$("fitGraph").onclick=()=>{$("workspace").scrollTo({left:0,top:0,behavior:"smooth"});status("Camera reset to top-left")};
 $("projectName").addEventListener("input",renderCode);
 $("workspace").addEventListener("scroll",drawWires);
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){pendingPin=null;renderNodes()}if((e.key==="Delete"||e.key==="Backspace")&&selectedNode&&!["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName)){nodes=nodes.filter(n=>n.id!==selectedNode);links=links.filter(l=>l.from!==selectedNode&&l.to!==selectedNode);selectedNode=null;renderAll()}});
 renderAll();
 const saved=BlueprintStorage.load();if(saved)loadState(saved);
-requestAnimationFrame(()=>centerWorkspace(false));
 })();
