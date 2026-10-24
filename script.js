@@ -23,6 +23,7 @@ function connectedComponentType(n){
 function nodeInputs(n){
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
+ if(n?.type==="if")return (n.values?.branchMode||"Exec")==="Exec"?[{id:"condition",label:"Condition",type:"bool"}]:[{id:"condition",label:"Condition",type:"bool"},{id:"trueValue",label:"True",type:n.values.branchMode},{id:"falseValue",label:"False",type:n.values.branchMode}];
  if(n?.type==="transform"){
   const operation=n.values?.operation||"setPosition";
   const base=(d?.dataIn||[]).filter(p=>p.id==="target");
@@ -85,6 +86,14 @@ function componentPropertyType(component,property){
  return map[component]?.[property]||"object";
 }
 function actualOutputType(n){
+ if(n?.type==="if"){
+  const mode=n.values?.branchMode||"Exec";
+  if(mode==="Exec")return "none";
+  if(mode!=="dynamic")return mode;
+  const yes=links.find(l=>l.kind==="data"&&l.to===n.id&&l.toPin==="trueValue");
+  const no=links.find(l=>l.kind==="data"&&l.to===n.id&&l.toPin==="falseValue");
+  return (yes&&actualOutputType(getNode(yes.from)))||(no&&actualOutputType(getNode(no.from)))||"dynamic";
+ }
  if(n?.type==="vectorsplit3"||n?.type==="vectorsplit2"||n?.type==="quaternionsplit")return "float";
  if(!n)return "dynamic";
  const d=getDef(n.type);
@@ -108,6 +117,7 @@ function actualOutputType(n){
 }
 function expectedInputType(n,p){
  if(!n||!p)return "dynamic";
+ if(n.type==="if"&&["trueValue","falseValue"].includes(p.id))return n.values?.branchMode||"dynamic";
  if((n.type==="vectorsplit3"||n.type==="vectorsplit2")&&p.id==="vector")return n.type==="vectorsplit3"?"Vector3":"Vector2";
   if(n.type==="quaternionsplit"&&p.id==="quaternion")return "Quaternion";
  if(n.type==="fromto"&&p.id==="value")return n.values.fromType||"float";
@@ -327,7 +337,7 @@ function renderNodes(){
   const d=getDef(n.type);if(!d)return;
   const el=document.createElement("div");el.className="node"+(selectedNode===n.id?" selected":"");el.dataset.id=n.id;el.style.left=n.x+"px";el.style.top=n.y+"px";el.style.setProperty("--accent",n.color||d.color);
   let html='<div class="node-head"><span class="node-accent"></span>'+esc(d.name)+'</div>';
-  if(d.flowIn)d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
+  if(d.flowIn&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"))d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
   html+='<div class="node-body">';
   html+='<div class="node-description">'+esc(d.desc)+'</div>';
   (d.fields||[]).forEach(f=>html+=fieldHtml(n,f));
@@ -355,7 +365,7 @@ function renderNodes(){
     const outputLabel=outputType==="dynamic"?(n.type==="getvar"?"Choose variable":"Select type"):outputType;
     html+='<div class="pin-row output-row"><span class="output-info"><span class="output-name">Output</span><span class="pin-type-badge output-type-badge">'+esc(outputLabel)+'</span></span><button class="pin out" data-direction="output" data-kind="data" data-type="'+esc(outputType)+'" data-pin="value" title="Drag to connect output"></button></div>';
    }
-   if(d.flowOut)d.flowOut.forEach(p=>html+='<div class="pin-row flow-output-row"><span class="output-name">'+esc(p)+'</span><button class="pin out exec-pin" data-direction="output" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Drag to connect output"></button></div>');
+   if(d.flowOut&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"))d.flowOut.forEach(p=>html+='<div class="pin-row flow-output-row"><span class="output-name">'+esc(p)+'</span><button class="pin out exec-pin" data-direction="output" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Drag to connect output"></button></div>');
   html+='</div>';el.innerHTML=html;
   el.addEventListener("click",e=>{if(e.target.closest(".pin, input, select, textarea, button, label"))return;selectedNode=n.id;renderNodes();renderInspector()});
   el.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();selectedNode=n.id;showContextMenu(e.clientX,e.clientY,[{label:"Duplicate node",action:()=>{const copy=addNode(n.type,n.x+15,n.y+15,{...n.values});if(copy){copy.color=n.color||"";selectedNode=copy.id;renderAll();status("Node duplicated · moved 15 px down and right")} }},{label:"Delete node",action:()=>{nodes=nodes.filter(x=>x.id!==n.id);links=links.filter(l=>l.from!==n.id&&l.to!==n.id);if(selectedNode===n.id)selectedNode=null;renderAll();status("Node deleted")}},{label:"Node color",submenu:[{label:"Default",color:"",action:()=>setNodeColor(n,"")},{label:"Blue",color:"#648cff",action:()=>setNodeColor(n,"#648cff")},{label:"Green",color:"#43b581",action:()=>setNodeColor(n,"#43b581")},{label:"Yellow",color:"#e0b64f",action:()=>setNodeColor(n,"#e0b64f")},{label:"Orange",color:"#e98b45",action:()=>setNodeColor(n,"#e98b45")},{label:"Red",color:"#df626c",action:()=>setNodeColor(n,"#df626c")},{label:"Purple",color:"#ad7ce8",action:()=>setNodeColor(n,"#ad7ce8")},{label:"Pink",color:"#e783b6",action:()=>setNodeColor(n,"#e783b6")},{label:"Gray",color:"#8e99aa",action:()=>setNodeColor(n,"#8e99aa")}]}]);});
@@ -368,7 +378,7 @@ function renderNodes(){
     const componentField=field.startsWith("use_")&&n.type==="setcomponent";
     const rebuildNode=componentField||field==="component"||field==="componentVariable";
     const operationChangesOutput=field==="operation"&&["transform","gameobject"].includes(n.type);
-    const pinTypeChange=["type","variable","componentType","fromType","toType","outputType","operandType","vectorType","aType","bType"].includes(field)||operationChangesOutput;
+    const pinTypeChange=["type","variable","componentType","fromType","toType","outputType","operandType","vectorType","aType","bType","branchMode"].includes(field)||operationChangesOutput;
     if(pinTypeChange||rebuildNode){
      removeIncompatibleLinksForOutput(n.id);
      removeIncompatibleLinksForInput(n.id);
