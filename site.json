@@ -1,0 +1,7 @@
+{
+  "name": "Unity C# Blueprint Studio",
+  "description": "Build Unity C# scripts with visual nodes, dropdown-selected variables, combined searchable operations, type-aware connections, live C# output, and local project saving.",
+  "tags": ["Unity", "C#", "Blueprint", "Visual scripting", "Node editor", "C# generator", "Variables", "Game development", "Programming", "Code blocks"],
+  "category": "Development Tools",
+  "icon": "⌘"
+}
