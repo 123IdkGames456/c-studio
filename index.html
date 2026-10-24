@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101218">
 <title>Unity C# Blueprint Studio</title>
-<link rel="stylesheet" href="style.css?v=server-library-link-1">
+<link rel="stylesheet" href="style.css?v=library-explore-2">
 </head>
 <body>
 <header class="topbar">
@@ -33,27 +33,19 @@
       <div id="canvas" class="canvas"><svg id="wires" class="wires"></svg><div id="emptyState" class="empty-state"><div class="empty-icon">⌘</div><strong>Build your script with nodes</strong><span>Add an event block, then connect actions and values.</span><button id="starterExample">Load starter example</button></div></div>
       <div id="miniMap" class="mini-map" aria-label="Graph mini-map"><div class="mini-map-title">GRAPH OVERVIEW <button id="miniMapToggle" type="button" aria-label="Hide mini-map">−</button></div><canvas id="miniMapCanvas" width="190" height="138"></canvas></div>
     </div>
-    <section class="code-panel">
-      <div class="code-heading"><div><strong>Generated C#</strong><span id="compileStatus"> · Live preview</span></div><div><button id="copyCode">Copy</button><button id="toggleCode">Hide code</button></div></div>
-      <pre id="codeOutput"></pre>
-    </section>
+    <section class="code-panel"><div class="code-heading"><div><strong>Generated C#</strong><span id="compileStatus"> · Live preview</span></div><div><button id="copyCode">Copy</button><button id="toggleCode">Hide code</button></div></div><pre id="codeOutput"></pre></section>
   </main>
-  <aside class="inspector">
-    <div class="panel-title">SELECTED NODE</div>
-    <div id="nodeInspector" class="node-inspector"><p class="subtle">Select a node to edit its settings.</p></div>
-    <div class="inspector-divider"></div>
-    <div class="panel-title">DIAGNOSTICS</div>
-    <div id="diagnostics" class="diagnostics">No issues detected.</div>
-  </aside>
+  <aside class="inspector"><div class="panel-title">SELECTED NODE</div><div id="nodeInspector" class="node-inspector"><p class="subtle">Select a node to edit its settings.</p></div><div class="inspector-divider"></div><div class="panel-title">DIAGNOSTICS</div><div id="diagnostics" class="diagnostics">No issues detected.</div></aside>
 </div>
 <section id="variablesPanel" class="variables-panel" hidden><div class="variables-panel-heading"><div><strong>PROJECT VARIABLES</strong><p>Create variables here. Variable blocks use dropdowns, never manually typed names.</p></div><button id="closeVariables" type="button" aria-label="Close variables">×</button></div><div class="variables-panel-actions"><button id="addVariableSide" class="primary" type="button">＋ Create variable</button></div><div id="variableList" class="variable-list"></div></section>
-<section id="libraryPanel" class="library-panel" hidden><div class="library-heading"><div><strong>SCRIPT LIBRARY</strong><p>Local scripts are stored on this device. Server scripts are managed in the connected Apps Script library.</p></div><button id="closeLibrary" type="button" aria-label="Close library">×</button></div><div class="library-toolbar"><input id="librarySearch" placeholder="Search saved scripts..." autocomplete="off"><button id="openServerLibrary" type="button">Open Server Library ↗</button><button id="libraryImportJson" type="button">＋ Add JSON</button></div><div id="libraryList" class="library-list"></div><div class="library-footer"><span id="libraryCount">0 scripts</span><button id="librarySaveCurrent" type="button">Save current as new</button></div></section><div id="loadProgress" class="load-progress" hidden><div class="load-progress-card"><div class="load-progress-mark">◈</div><strong id="loadProgressTitle">Loading script</strong><p id="loadProgressDetail">Preparing project…</p><div class="load-progress-track"><span id="loadProgressBar"></span></div><div id="loadProgressStages" class="load-progress-stages"></div><p id="loadProgressPercent">0%</p></div></div><div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-title"><strong id="modalTitle">Create variable</strong><button id="modalClose">×</button></div><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel">Cancel</button><button id="modalConfirm" class="primary">Create</button></div></div></div>
+<section id="libraryPanel" class="library-panel" hidden>
+  <div class="library-heading"><div><strong>SCRIPT LIBRARY</strong><p>Local scripts are saved on this device. Explore shows scripts published to the server.</p></div><button id="closeLibrary" type="button" aria-label="Close library">×</button></div>
+  <div class="library-tabs" role="tablist"><button type="button" class="library-tab active" id="libraryLocalTab" data-library-tab="local">Local</button><button type="button" class="library-tab" id="libraryExploreTab" data-library-tab="explore">Explore</button></div>
+  <div id="libraryLocalView" class="library-view"><div class="library-toolbar"><input id="librarySearch" placeholder="Search saved scripts..." autocomplete="off"><button id="libraryImportJson" type="button">＋ Add JSON</button></div><div id="libraryList" class="library-list"></div><div class="library-footer"><span id="libraryCount">0 scripts</span><button id="librarySaveCurrent" type="button">Save current as new</button></div></div>
+  <div id="libraryExploreView" class="library-view" hidden><div class="library-toolbar"><input id="exploreSearch" placeholder="Search server scripts..." autocomplete="off"><button id="refreshExplore" type="button">Refresh</button></div><div id="exploreStatus" class="explore-status">Press Refresh to load scripts from the server.</div><div id="exploreList" class="library-list"></div></div>
+</section>
+<div id="loadProgress" class="load-progress" hidden><div class="load-progress-card"><div class="load-progress-mark">◈</div><strong id="loadProgressTitle">Loading script</strong><p id="loadProgressDetail">Preparing project…</p><div class="load-progress-track"><span id="loadProgressBar"></span></div><div id="loadProgressStages" class="load-progress-stages"></div><p id="loadProgressPercent">0%</p></div></div>
+<div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-title"><strong id="modalTitle">Create variable</strong><button id="modalClose">×</button></div><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel">Cancel</button><button id="modalConfirm" class="primary">Create</button></div></div></div>
 <input id="fileInput" type="file" accept=".json,application/json" hidden><input id="libraryJsonInput" type="file" accept=".json,application/json" hidden>
-<script src="types.js?v=object-variable-compat-1"></script>
-<script src="blocks.js?v=rotation-rate-dropdown-1"></script>
-<script src="compiler.js?v=object-variable-compat-1"></script>
-<script src="storage.js"></script>
-<script src="script.js?v=server-library-link-1"></script>
-<script src="server-library.js?v=1"></script>
-</body>
-</html>
+<script src="types.js?v=object-variable-compat-1"></script><script src="blocks.js?v=rotation-rate-dropdown-1"></script><script src="compiler.js?v=object-variable-compat-1"></script><script src="storage.js"></script><script src="script.js?v=library-explore-2"></script><script src="server-library.js?v=2"></script>
+</body></html>
