@@ -199,7 +199,9 @@ function removeIncompatibleLinksForInput(nodeId){
   return !!input&&inputActive(n,input)&&typesCompatible(actualOutputType(source),expectedInputType(n,input));
  });
 }
-const allCategories = ["All", ...BlueprintBlocks.categories];
+const categoryOrder = ["Events","Flow","Variables","Values","Math","Logic","Unity","Input","Physics","Time","Lists","Functions","Debug","Device","Utility"];
+const categoryRank = category => { const i=categoryOrder.indexOf(category); return i<0?999:i; };
+const allCategories = ["All", ...BlueprintBlocks.categories.slice().sort((a,b)=>categoryRank(a)-categoryRank(b)||a.localeCompare(b))];
 function status(s){$("graphStatus").textContent=" · "+s}
 function defaultNodePosition(){
  const workspace=$("workspace"),canvas=$("canvas"),wr=workspace.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
@@ -234,6 +236,67 @@ function openVariableModal(existing=null) {
  $("modalConfirm").onclick=()=>{const data={name:$("varName").value,type:$("varType").value,access:$("varAccess").value,initial:$("varInitial").value.trim()||BlueprintTypes.defaultValue($("varType").value)};if(existing){if(variables.some(v=>v.id!==existing.id&&v.name===data.name)){alert("That variable name already exists.");return}Object.assign(existing,data)}else{const made=addVariable(data);if(!made)return} $("modal").hidden=true;renderAll()};
 }
 function renderCategories(){ $("categories").innerHTML=allCategories.map(c=>'<button class="category '+(c===activeCategory?"active":"")+'" data-category="'+esc(c)+'">'+esc(c)+'</button>').join("");$("categories").querySelectorAll("button").forEach(b=>b.onclick=()=>{activeCategory=b.dataset.category;renderCategories();renderBlocks()})}
+function blockSearchText(d){return [d.name,d.category,d.desc,...(d.aliases||[]),...(d.fields||[]).flatMap(f=>[f.label,...(f.options||[]).map(o=>o[1])])].join(" ").toLowerCase()}
+function blockSearchScore(d,q){
+ const name=String(d.name||"").toLowerCase(), aliases=(d.aliases||[]).map(a=>String(a).toLowerCase()), text=blockSearchText(d);
+ if(name===q)return 1200;
+ if(name.startsWith(q))return 1050;
+ if(name.includes(q))return 900;
+ if(aliases.some(a=>a===q))return 850;
+ if(aliases.some(a=>a.startsWith(q)))return 760;
+ if(aliases.some(a=>a.includes(q)))return 650;
+ const terms=q.split(/\\s+/).filter(Boolean);
+ const nameHits=terms.filter(t=>name.includes(t)).length;
+ const aliasHits=terms.filter(t=>aliases.some(a=>a.includes(t))).length;
+ const textHits=terms.filter(t=>text.includes(t)).length;
+ return (nameHits/terms.length)*600+(aliasHits/terms.length)*430+(textHits/terms.length)*240;
+}
+function renderBlocks(){
+ const q=$("blockSearch").value.toLowerCase().trim();
+ const filtered=defs.filter(d=>{
+  const matches=!q||blockSearchText(d).includes(q);
+  return matches&&(q||activeCategory==="All"||d.category===activeCategory);
+ }).sort((a,b)=>{
+  if(q){const diff=blockSearchScore(b,q)-blockSearchScore(a,q);if(diff)return diff;}
+  return categoryRank(a.category)-categoryRank(b.category)||a.name.localeCompare(b.name);
+ });
+ const groups=[...new Set(filtered.map(d=>d.category))].sort((a,b)=>{
+  if(q){const scoreA=Math.max(...filtered.filter(d=>d.category===a).map(d=>blockSearchScore(d,q)));const scoreB=Math.max(...filtered.filter(d=>d.category===b).map(d=>blockSearchScore(d,q)));if(scoreA!==scoreB)return scoreB-scoreA;}
+  return categoryRank(a)-categoryRank(b)||a.localeCompare(b);
+ });
+ $("blockList").innerHTML=groups.map(category=>'<section class="block-category-section"><div class="block-category-heading"><span>'+esc(category)+'</span><small>'+filtered.filter(d=>d.category===category).length+' blocks</small></div>'+filtered.filter(d=>d.category===category).map(d=>'<button class="block-item" data-type="'+d.id+'" style="--accent:'+d.color+'"><span class="block-dot"></span><span class="block-text"><strong>'+esc(d.name)+'</strong><small>'+esc(d.desc)+'</small></span></button>').join("")+'</section>').join("")||'<div class="subtle">No blocks found. Try a synonym, symbol, or operation name.</div>';
+ $("blockList").querySelectorAll("[data-type]").forEach(b=>{
+  b.onclick=e=>e.preventDefault();
+  b.addEventListener("pointerdown",e=>{
+   if(e.button!==0)return;
+   e.preventDefault();
+   const type=b.dataset.type,workspace=$("workspace");
+   let draggedNode=null,finished=false;
+   const inside=ev=>{const r=workspace.getBoundingClientRect();return ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom};
+   function move(ev){
+    if(finished||!inside(ev))return;
+    const p=canvasPoint(ev.clientX,ev.clientY);
+    if(!draggedNode){
+     draggedNode=addNode(type,Math.max(0,p.x-120),Math.max(0,p.y-22));
+     const el=$("canvas").querySelector('.node[data-id="'+draggedNode.id+'"]');
+     if(el){el.style.opacity=".78";el.style.pointerEvents="none";}
+    }else{
+     draggedNode.x=Math.max(0,Math.min(26900,p.x-120));
+     draggedNode.y=Math.max(0,Math.min(26900,p.y-22));
+     const el=$("canvas").querySelector('.node[data-id="'+draggedNode.id+'"]');
+     if(el){el.style.left=draggedNode.x+"px";el.style.top=draggedNode.y+"px";}
+    }
+    renderNodes();drawWires();
+   }
+   function finish(ev){
+    if(finished)return;finished=true;
+    window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",finish);
+    if(draggedNode){const el=$("canvas").querySelector('.node[data-id="'+draggedNode.id+'"]');if(el){el.style.opacity="";el.style.pointerEvents="";}renderAll();status("Added "+(getDef(type)?.name||"node"));}
+   }
+   window.addEventListener("pointermove",move);window.addEventListener("pointerup",finish,{once:true});
+  });
+ });
+}
 function renderBlocks(){
  const q=$("blockSearch").value.toLowerCase().trim();
  const filtered=defs.filter(d=>(activeCategory==="All"||d.category===activeCategory)&&(!q||[d.name,d.category,d.desc,...(d.aliases||[]),...(d.fields||[]).flatMap(f=>[f.label,...(f.options||[]).map(o=>o[1])])].join(" ").toLowerCase().includes(q)));
