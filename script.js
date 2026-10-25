@@ -25,7 +25,7 @@ function nodeInputs(n){
  if(["listelement","listclosest","listfarthest"].includes(n?.type)){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:p.id==="index"?{...p,type:"int"}:{...p,type});}
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
- if(n?.type==="raycast"){const mode=n.values?.tagMode||"none",debugLinked=links.some(l=>l.kind==="data"&&l.to===n.id&&l.toPin==="showDebug"),debugEnabled=n.values?.showDebug===true||n.values?.showDebug==="true",showColors=debugLinked||debugEnabled;return (d?.dataIn||[]).filter(p=>(!["tag","tags"].includes(p.id)||(p.id==="tag"&&mode==="tag")||(p.id==="tags"&&mode==="tags"))||(["hitColor","missColor"].includes(p.id)&&showColors));}
+ if(["raycast","spherecast","overlapsphere"].includes(n?.type)){const mode=n.values?.tagMode||"none",debugLinked=links.some(l=>l.kind==="data"&&l.to===n.id&&l.toPin==="showDebug"),debugEnabled=n.values?.showDebug===true||n.values?.showDebug==="true",showColors=debugLinked||debugEnabled;return (d?.dataIn||[]).filter(p=>(n.type!=="raycast"||!["tag","tags"].includes(p.id)||(p.id==="tag"&&mode==="tag")||(p.id==="tags"&&mode==="tags"))||(["hitColor","missColor"].includes(p.id)&&showColors));}
  if(n?.type==="if")return (n.values?.branchMode||"Exec")==="Exec"?[{id:"condition",label:"Condition",type:"bool"}]:[{id:"condition",label:"Condition",type:"bool"},{id:"trueValue",label:"True",type:n.values.branchMode},{id:"falseValue",label:"False",type:n.values.branchMode}];
  if(n?.type==="transform"){
   const operation=n.values?.operation||"setPosition";
@@ -418,7 +418,7 @@ function renderNodes(){
   el.querySelectorAll("[data-field]").forEach(input=>{
    input.addEventListener(input.type==="checkbox"?"input":"change",()=>{
     const field=input.dataset.field;
-    n.values[field]=input.type==="checkbox"?String(input.checked):input.value;if(n.type==="raycast"&&field==="showDebug"&&n.values.showDebug!=="true"&&!links.some(l=>l.kind==="data"&&l.to===n.id&&l.toPin==="showDebug"))links=links.filter(l=>!(l.kind==="data"&&l.to===n.id&&["hitColor","missColor"].includes(l.toPin)));if(n.type==="literal"&&field==="value"&&n.values.type==="int"&&input.type!=="checkbox"){n.values[field]=String(Math.trunc(Number(input.value)||0));input.value=n.values[field]}
+    n.values[field]=input.type==="checkbox"?String(input.checked):input.value;if(["raycast","spherecast","overlapsphere"].includes(n.type)&&field==="showDebug"&&n.values.showDebug!=="true"&&!links.some(l=>l.kind==="data"&&l.to===n.id&&l.toPin==="showDebug"))links=links.filter(l=>!(l.kind==="data"&&l.to===n.id&&["hitColor","missColor"].includes(l.toPin)));if(n.type==="literal"&&field==="value"&&n.values.type==="int"&&input.type!=="checkbox"){n.values[field]=String(Math.trunc(Number(input.value)||0));input.value=n.values[field]}
     const componentField=field.startsWith("use_")&&n.type==="setcomponent";
     const rebuildNode=componentField||field==="component"||field==="componentVariable";
     const operationChangesOutput=field==="operation"&&["transform","gameobject"].includes(n.type);
