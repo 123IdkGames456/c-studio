@@ -90,6 +90,7 @@ function componentPropertyType(component,property){
  return map[component]?.[property]||"object";
 }
 function actualOutputType(n){
+  if(n?.type==="foreach")return n.values?.elementType||"GameObject";
  if(["listelement","listclosest","listfarthest"].includes(n?.type))return n.values?.elementType||"GameObject";
  if(n?.type==="getfirsttag")return "GameObject";
  if(n?.type==="getalltag")return "List<GameObject>";
