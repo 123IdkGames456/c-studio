@@ -887,7 +887,59 @@ function setExploreTab(tab){activeExploreTab=tab;const custom=tab==="custom";$("
 function jsonpList(url){return new Promise((resolve,reject)=>{const cb="cstudioExploreCallback_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),script=document.createElement("script"),timer=setTimeout(()=>{cleanup();reject(Error("Timed out contacting Explore."))},18000);function cleanup(){clearTimeout(timer);delete window[cb];script.remove()}window[cb]=data=>{cleanup();resolve(data)};script.onerror=()=>{cleanup();reject(Error("Could not reach the Apps Script endpoint. Check deployment access and URL."))};script.src=url+(url.includes("?")?"&":"?")+"action=list&callback="+cb;document.body.appendChild(script)})}
 async function refreshExplore(){const endpoint=exploreEndpoint();$("exploreConnectionStatus").textContent="Loading published items…";try{const data=await jsonpList(endpoint);if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");exploreItems=Array.isArray(data.items)?data.items:[];$("exploreConnectionStatus").textContent="Connected · "+exploreItems.length+" published item"+(exploreItems.length===1?"":"s");renderExplore()}catch(e){$("exploreConnectionStatus").textContent=e.message+" If this is a new deployment, check that access is set to anyone with the link."}}
 function renderExplore(){const q1=($("exploreCodesSearch")?.value||"").trim().toLowerCase(),q2=($("exploreCustomSearch")?.value||"").trim().toLowerCase(),codes=exploreItems.filter(x=>x.type==="code"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q1)),blocks=exploreItems.filter(x=>x.type==="custom"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q2));$("exploreCodesCount").textContent=codes.length+" published code"+(codes.length===1?"":"s");$("exploreCustomCount").textContent=blocks.length+" published custom block"+(blocks.length===1?"":"s");const card=x=>'<article class="library-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>'+esc(x.name||"Untitled")+'</strong><span>'+esc(x.description||"Community shared item")+'</span></div><span class="server-badge">'+(x.type==="custom"?"CUSTOM BLOCK":"CODE")+'</span></div><div class="library-meta"><span>By <b>'+esc(x.author||"Community member")+'</b></span><span>Published '+esc(x.createdAt?new Date(x.createdAt).toLocaleDateString():"date unknown")+'</span></div><div class="library-entry-actions"><button class="primary" data-explore-action="install" data-id="'+esc(x.id)+'">Install</button></div></article>';$("exploreCodesList").innerHTML=codes.length?codes.map(card).join(""):'<div class="library-empty">No published codes found.</div>';$("exploreCustomList").innerHTML=blocks.length?blocks.map(card).join(""):'<div class="library-empty">No published custom blocks found.</div>'}
-async function publishItem(type,item){const endpoint=exploreEndpoint();if(!endpoint){alert("Explore has no backend URL configured.");return}const name=(prompt("Choose the permanent published name. Published names cannot be renamed:",item.name||"Untitled")||"").trim();if(!name)return;const author=(prompt("Publisher name shown publicly:","C-Studio user")||"C-Studio user").trim();const body={action:"publish",type,name,description:type==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,payload:item.payload};try{await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)});status("Publish request sent. Refresh Explore shortly to check the listing.");$("explorePanel").hidden=false;setTimeout(refreshExplore,2000)}catch(e){alert("Could not send publish request: "+e.message)}}
+async function publishItem(type,item){
+ const endpoint=exploreEndpoint();
+ if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);$("exploreConnectionStatus").textContent=message;alert(message);return}
+ const name=(prompt("Choose the permanent published name. Published names cannot be renamed:",item.name||"Untitled")||"").trim();
+ if(!name)return;
+ const author=(prompt("Publisher name shown publicly:","C-Studio user")||"C-Studio user").trim()||"C-Studio user";
+ const kind=type==="code"?"code":"custom";
+ const label=kind==="code"?"code":"custom block";
+ const connection=$("exploreConnectionStatus");
+ const button=document.activeElement;
+ const oldButtonText=button&&button.tagName==="BUTTON"?button.textContent:"";
+ if(button&&button.tagName==="BUTTON"){button.disabled=true;button.textContent="Publishing…"}
+ $("explorePanel").hidden=false;
+ connection.textContent="Step 1/3 · Preparing "+label+" for publishing…";
+ status("Publishing "+label+"…");
+ let previousIds=new Set(exploreItems.map(x=>String(x.id)));
+ try{
+  connection.textContent="Step 2/3 · Sending "+label+" to Google Sheets…";
+  const response=await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,payload:item.payload})});
+  connection.textContent="Step 3/3 · Request sent. Checking whether Google Sheets saved it…";
+  let lastError=null, published=null;
+  for(let attempt=1;attempt<=4;attempt++){
+   await new Promise(resolve=>setTimeout(resolve,1500));
+   try{
+    const data=await jsonpList(endpoint);
+    if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");
+    const items=Array.isArray(data.items)?data.items:[];
+    published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&String(x.author||"").trim()===author)||null;
+    exploreItems=items;
+    renderExplore();
+    if(published)break;
+    connection.textContent="Step 3/3 · Checking Google Sheets… attempt "+attempt+" of 4.";
+   }catch(e){lastError=e;connection.textContent="Step 3/3 · Could not verify yet (attempt "+attempt+" of 4): "+(e?.message||String(e))}
+  }
+  if(published){
+   connection.textContent="Published successfully · "+name+" is now visible in Explore.";
+   status("Published successfully: "+name);
+  }else{
+   const detail=lastError?" Last check error: "+lastError.message:"";
+   const message="Publish could not be confirmed. Google Sheets did not show a new "+label+" named “"+name+"” after 6 seconds."+detail+" Check the Apps Script deployment, permissions, and execution log, then refresh Explore.";
+   connection.textContent="Publish failed or unconfirmed · "+message;
+   status("Publish failed or unconfirmed: "+name);
+   alert(message);
+  }
+ }catch(e){
+  const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Google Apps Script deployment.";
+  connection.textContent=message;
+  status(message);
+  alert(message);
+ }finally{
+  if(button&&button.tagName==="BUTTON"){button.disabled=false;button.textContent=oldButtonText}
+ }
+}
 function installExploreItem(id){const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;let payload=item.payload;try{if(typeof payload==="string")payload=JSON.parse(payload)}catch{alert("This published item has invalid data.");return}if(item.type==="code"){const project=payload?.project||payload;if(!project||!Array.isArray(project.nodes)){alert("This published code has invalid project data.");return}const all=libraryEntries();if(all.some(e=>e.publishedSourceId===item.id)){status("Already installed in Library > Codes.");return}const entry=makeEntry(project,item.name||project.projectName||"Installed code");entry.publishedSourceId=item.id;entry.folder="Explore installs";all.unshift(entry);writeLibrary(all);renderLibrary();status("Installed locally. Open Library > Codes to rename or load it.");return}const incoming=Array.isArray(payload?.customBlocks)?payload.customBlocks:(payload?.customBlock?[payload.customBlock]:[payload]);if(!incoming.length||!incoming[0]?.nodes){alert("This published custom block has invalid data.");return}if(customBlocks.some(b=>b.publishedSourceId===item.id)){status("Already installed in Library > Custom Blocks.");return}const idMap=new Map(incoming.map(b=>[String(b.id),"installed_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)+"_"+String(b.id).replace(/[^a-z0-9]/gi,"").slice(-6)]));const cloned=incoming.map((b,i)=>{const c=JSON.parse(JSON.stringify(b));c.id=idMap.get(String(b.id));c.publishedSourceId=i===0?item.id:undefined;if(i===0)c.name=item.name||b.name;c.nodes=(c.nodes||[]).map(n=>{if(String(n.type).startsWith("customblock_")){const old=n.type.slice("customblock_".length);if(idMap.has(old))n.type="customblock_"+idMap.get(old)}return n});return c});customBlocks.push(...cloned);saveCustomBlocks();syncCustomDefs();renderCustomBlockLibrary();status("Installed locally. Open Library > Custom Blocks to edit or rename your copy.")}
 $("openExplore").onclick=openExplore;$("closeExplore").onclick=()=>$("explorePanel").hidden=true;$("saveExploreEndpoint").onclick=saveExploreEndpoint;$("exploreCodesTab").onclick=()=>setExploreTab("codes");$("exploreCustomTab").onclick=()=>setExploreTab("custom");$("refreshExploreCodes").onclick=refreshExplore;$("refreshExploreCustom").onclick=refreshExplore;$("exploreCodesSearch").addEventListener("input",renderExplore);$("exploreCustomSearch").addEventListener("input",renderExplore);$("exploreCodesList").addEventListener("click",e=>{const b=e.target.closest("[data-explore-action=install]");if(b)installExploreItem(b.dataset.id)});$("exploreCustomList").addEventListener("click",e=>{const b=e.target.closest("[data-explore-action=install]");if(b)installExploreItem(b.dataset.id)});$("exploreEndpoint").value=exploreEndpoint();
 
