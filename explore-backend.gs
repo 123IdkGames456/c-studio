@@ -170,7 +170,7 @@ function ensureHeaders_(sheet) {
 
   const oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
   const oldHeaders = oldValues[0].map(value => String(value || "").trim());
-  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header))];
+  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header) && !["passwordSalt", "passwordHash", "passwordUpdatedAt"].includes(header))];
   const rows = [headers];
 
   for (let r = 1; r < oldValues.length; r++) {
