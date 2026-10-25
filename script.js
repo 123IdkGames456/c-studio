@@ -236,6 +236,50 @@ function addNode(type,x,y,values={}) {
  if(type==="getvar"||type==="setvar") n.values.variable=values.variable??variables[0]?.id??"";
  nodes.push(n);selectedNode=n.id;renderAll();return n;
 }
+function customPortTypes(){return [...new Set([...(BlueprintTypes.all||[]),"object","UnityEngine.Object","Vector2","Vector3","Vector4","Quaternion","Color","List<int>","List<float>","List<bool>","List<string>","List<GameObject>","List<Transform>","List<Vector2>","List<Vector3>"])].sort((a,b)=>a.localeCompare(b))}
+function saveCurrentCustomDefinition(){
+ if(!customEditingId)return;
+ const def=customBlocks.find(x=>x.id===customEditingId);if(!def)return;
+ def.nodes=JSON.parse(JSON.stringify(nodes));def.links=JSON.parse(JSON.stringify(links));def.variables=JSON.parse(JSON.stringify(variables));def.nextNode=nextNode;def.nextVariable=nextVariable;
+ const input=def.nodes.find(n=>n.type==="custominput"),output=def.nodes.find(n=>n.type==="customoutput");
+ def.inputs=input?.values?.ports||[];def.outputs=output?.values?.ports||[];
+ syncCustomDefs();saveCustomBlocks();
+}
+function openCreateCustomBlock(){
+ if(customEditingId){status("Exit the current custom block before creating another");return}
+ const name=(prompt("Name your new custom node:","My Custom Node")||"").trim();
+ if(!name)return;
+ if(customBlocks.some(b=>b.name.toLowerCase()===name.toLowerCase())){alert("A custom node with that name already exists.");return}
+ const id="custom_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7);
+ customBlocks.push({id,name,color:"#d09aff",description:"Reusable custom block",nodes:[{id:1,type:"custominput",x:100,y:120,values:{ports:[]}},{id:2,type:"customoutput",x:560,y:120,values:{ports:[]}}],links:[],variables:[],nextNode:3,nextVariable:1});
+ saveCustomBlocks();syncCustomDefs();enterCustomEditor(id);
+}
+function enterCustomEditor(id){
+ if(customEditingId){status("Exit the current custom block before opening another");return}
+ const def=customBlocks.find(x=>x.id===id);if(!def)return;
+ customParentState={nodes,links,variables,nextNode,nextVariable,selectedNode,projectName:$("projectName").value};
+ customEditingId=id;
+ nodes=JSON.parse(JSON.stringify(def.nodes||[]));links=JSON.parse(JSON.stringify(def.links||[]));variables=JSON.parse(JSON.stringify(def.variables||[]));
+ nextNode=def.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=def.nextVariable||variables.length+1;
+ if(!nodes.some(n=>n.type==="custominput"))nodes.unshift({id:nextNode++,type:"custominput",x:100,y:120,values:{ports:[]}});
+ if(!nodes.some(n=>n.type==="customoutput"))nodes.push({id:nextNode++,type:"customoutput",x:560,y:120,values:{ports:[]}});
+ selectedNode=nodes.find(n=>n.type==="custominput")?.id||nodes[0]?.id||null;
+ $("exitCustomEditor").hidden=false;$("projectName").disabled=true;document.querySelector(".top-actions").style.display="none";
+ status("Editing custom node: "+def.name);renderAll();
+}
+function exitCustomEditor(){
+ if(!customEditingId||!customParentState)return;
+ const def=customBlocks.find(x=>x.id===customEditingId);saveCurrentCustomDefinition();
+ const parent=customParentState;customEditingId=null;customParentState=null;
+ nodes=parent.nodes;links=parent.links;variables=parent.variables;nextNode=parent.nextNode;nextVariable=parent.nextVariable;selectedNode=parent.selectedNode;
+ $("projectName").value=parent.projectName||"My Blueprint Project";$("projectName").disabled=false;
+ $("exitCustomEditor").hidden=true;document.querySelector(".top-actions").style.display="flex";
+ syncCustomDefs();renderAll();status("Saved custom node: "+(def?.name||"Custom Node"));
+}
+function addCustomPort(boundary,portType){
+ const port={id:"port_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,5),name:(boundary.type==="custominput"?"Input":"Output")+(boundary.values.ports.length+1),type:portType||"float",default:BlueprintTypes.defaultValue(portType||"float")};
+ boundary.values.ports.push(port);renderAll();
+}
 function addVariable(v={}) {
  const name=(v.name||"Variable"+nextVariable).trim();
  if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)){alert("Use a C# variable name: letters, numbers and underscores, starting with a letter or underscore.");return}
@@ -273,7 +317,7 @@ function blockSearchScore(d,q){
 }
 function renderBlocks(){
  const q=$("blockSearch").value.toLowerCase().trim();
- const filtered=defs.filter(d=>(q||activeCategory==="All"||d.category===activeCategory)&&(!q||blockSearchText(d).includes(q))).sort((a,b)=>{
+ const filtered=defs.filter(d=>!["custominput","customoutput"].includes(d.id)&&(q||activeCategory==="All"||d.category===activeCategory)&&(!q||blockSearchText(d).includes(q))).sort((a,b)=>{
   if(q){const score=blockSearchScore(b,q)-blockSearchScore(a,q);if(score)return score;}
   return categoryRank(a.category)-categoryRank(b.category)||a.name.localeCompare(b.name);
  });
@@ -287,7 +331,7 @@ function renderBlocks(){
   b.addEventListener("pointerdown",e=>{
    if(e.button!==0)return;
    e.preventDefault();
-   const type=b.dataset.type,workspace=$("workspace");
+   const type=b.dataset.type;if(type==="createcustom"){openCreateCustomBlock();return;}const workspace=$("workspace");
    let draggedNode=null,finished=false;
    const inside=ev=>{const r=workspace.getBoundingClientRect();return ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom};
    function move(ev){
@@ -727,7 +771,7 @@ $("miniMapToggle").addEventListener("click",()=>{
  $("miniMapToggle").setAttribute("aria-label",min?"Show mini-map":"Hide mini-map");
 });
 
-function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable}}
+function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable,customBlocks:JSON.parse(JSON.stringify(customBlocks))}}
 function loadState(s){if(!s||!Array.isArray(s.nodes))throw new Error("This JSON is not a Blueprint project.");variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
 
 const templates=[
@@ -799,7 +843,7 @@ function makeEntry(project,name,old=null){const now=new Date().toISOString();ret
 function saveCurrentToLibrary(forceNew=false,name=null){const project=JSON.parse(JSON.stringify(snapshot())),all=libraryEntries();let old=!forceNew&&currentLibraryId?all.find(e=>e.id===currentLibraryId):null;if(!old&&!forceNew)old=all.find(e=>e.name===project.projectName);const entry=makeEntry(project,name||old?.name||project.projectName,old);if(old)all[all.findIndex(e=>e.id===old.id)]=entry;else all.unshift(entry);currentLibraryId=entry.id;writeLibrary(all);renderLibrary();return entry}
 function openLibrary(){renderLibrary();$("libraryPanel").hidden=false}
 function renderLibrary(){const list=$("libraryList"),q=($("librarySearch").value||"").trim().toLowerCase(),all=libraryEntries(),visible=all.filter(e=>(e.name+" "+(e.folder||"")+(e.favorite?" favorite":"")).toLowerCase().includes(q));$("libraryCount").textContent=all.length+" script"+(all.length===1?"":"s");list.innerHTML=visible.length?visible.map(e=>'<article class="library-entry"><div class="library-entry-top"><button class="library-load" data-action="load" data-id="'+esc(e.id)+'"><strong>'+esc(e.name)+'</strong><span>'+esc(e.folder||"My Scripts")+(e.favorite?" · ★ Favorite":"")+'</span></button><button class="library-favorite '+(e.favorite?"active":"")+'" data-action="favorite" data-id="'+esc(e.id)+'">'+(e.favorite?"★":"☆")+'</button></div><div class="library-meta"><span>Size <b>'+formatSize(entrySize(e))+'</b></span><span>Made '+esc(new Date(e.createdAt).toLocaleString())+'</span><span>Updated '+esc(new Date(e.updatedAt).toLocaleString())+'</span></div><div class="library-entry-actions"><button data-action="rename" data-id="'+esc(e.id)+'">Rename</button><button data-action="move" data-id="'+esc(e.id)+'">Move</button><button data-action="export" data-id="'+esc(e.id)+'">Export JSON</button><button class="danger" data-action="delete" data-id="'+esc(e.id)+'">Remove</button></div></article>').join(""):'<div class="library-empty">No saved scripts yet. Press Save or add a JSON file.</div>'}
-async function loadProjectWithProgress(p,id=null){if(!p||!Array.isArray(p.nodes))throw Error("This JSON is not a Blueprint project.");const vs=Array.isArray(p.variables)?p.variables:[],ns=p.nodes,ls=Array.isArray(p.links)?p.links:[],total=vs.length+ns.length+ls.length+1,panel=$("loadProgress"),c={v:0,n:0,l:0,i:0,it:ns.reduce((a,n)=>a+Object.values(n.values||{}).filter(v=>v!==""&&v!==null&&v!==undefined).length,0)};let done=0;panel.hidden=false;$("loadProgressTitle").textContent="Loading "+(p.projectName||"Blueprint script");const update=t=>{$("loadProgressDetail").textContent=t;$("loadProgressBar").style.width=Math.min(100,Math.round(done/Math.max(1,total)*100))+"%";$("loadProgressPercent").textContent=Math.min(100,Math.round(done/Math.max(1,total)*100))+"%";$("loadProgressStages").innerHTML='<div>Variables added <b>'+c.v+' / '+vs.length+'</b></div><div>Nodes spawned <b>'+c.n+' / '+ns.length+'</b></div><div>Connections added <b>'+c.l+' / '+ls.length+'</b></div><div>Manual inputs set <b>'+c.i+' / '+c.it+'</b></div>'},pause=()=>new Promise(r=>setTimeout(r,Math.min(12,Math.max(1,150/Math.max(1,total)))));try{variables=[];nodes=[];links=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value=p.projectName||"My Blueprint Project";renderAll();update("Preparing project…");await pause();for(const v of vs){variables.push(v);c.v++;done++;nextVariable=Math.max(nextVariable,Number(String(v.id).replace(/^v/,""))+1||c.v+1);renderVariables();update("Adding variables…");await pause()}for(const src of ns){const d=getDef(src.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));nodes.push({...src,values:{...defaults,...(src.values||{})}});c.n++;c.i+=Object.values(src.values||{}).filter(v=>v!==""&&v!==null&&v!==undefined).length;done++;nextNode=Math.max(nextNode,Number(src.id)||0)+1;renderNodes();update("Spawning nodes…");await pause()}for(const l of ls){links.push(l);c.l++;done++;drawWires();update("Restoring connections…");await pause()}nextNode=p.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=p.nextVariable||variables.length+1;selectedNode=nodes[0]?.id??null;renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});$("loadProgressDetail").textContent="All stages complete.";$("loadProgressBar").style.width="100%";$("loadProgressPercent").textContent="100%";await new Promise(r=>setTimeout(r,300));panel.hidden=true;if(id)currentLibraryId=id;status("Loaded "+nodes.length+" nodes")}catch(e){panel.hidden=true;throw e}}
+async function loadProjectWithProgress(p,id=null){if(!p||!Array.isArray(p.nodes))throw Error("This JSON is not a Blueprint project.");if(Array.isArray(p.customBlocks)){customBlocks=JSON.parse(JSON.stringify(p.customBlocks));saveCustomBlocks();syncCustomDefs()}const vs=Array.isArray(p.variables)?p.variables:[],ns=p.nodes,ls=Array.isArray(p.links)?p.links:[],total=vs.length+ns.length+ls.length+1,panel=$("loadProgress"),c={v:0,n:0,l:0,i:0,it:ns.reduce((a,n)=>a+Object.values(n.values||{}).filter(v=>v!==""&&v!==null&&v!==undefined).length,0)};let done=0;panel.hidden=false;$("loadProgressTitle").textContent="Loading "+(p.projectName||"Blueprint script");const update=t=>{$("loadProgressDetail").textContent=t;$("loadProgressBar").style.width=Math.min(100,Math.round(done/Math.max(1,total)*100))+"%";$("loadProgressPercent").textContent=Math.min(100,Math.round(done/Math.max(1,total)*100))+"%";$("loadProgressStages").innerHTML='<div>Variables added <b>'+c.v+' / '+vs.length+'</b></div><div>Nodes spawned <b>'+c.n+' / '+ns.length+'</b></div><div>Connections added <b>'+c.l+' / '+ls.length+'</b></div><div>Manual inputs set <b>'+c.i+' / '+c.it+'</b></div>'},pause=()=>new Promise(r=>setTimeout(r,Math.min(12,Math.max(1,150/Math.max(1,total)))));try{variables=[];nodes=[];links=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value=p.projectName||"My Blueprint Project";renderAll();update("Preparing project…");await pause();for(const v of vs){variables.push(v);c.v++;done++;nextVariable=Math.max(nextVariable,Number(String(v.id).replace(/^v/,""))+1||c.v+1);renderVariables();update("Adding variables…");await pause()}for(const src of ns){const d=getDef(src.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));nodes.push({...src,values:{...defaults,...(src.values||{})}});c.n++;c.i+=Object.values(src.values||{}).filter(v=>v!==""&&v!==null&&v!==undefined).length;done++;nextNode=Math.max(nextNode,Number(src.id)||0)+1;renderNodes();update("Spawning nodes…");await pause()}for(const l of ls){links.push(l);c.l++;done++;drawWires();update("Restoring connections…");await pause()}nextNode=p.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=p.nextVariable||variables.length+1;selectedNode=nodes[0]?.id??null;renderAll();$("workspace").scrollTo({left:0,top:0,behavior:"auto"});$("loadProgressDetail").textContent="All stages complete.";$("loadProgressBar").style.width="100%";$("loadProgressPercent").textContent="100%";await new Promise(r=>setTimeout(r,300));panel.hidden=true;if(id)currentLibraryId=id;status("Loaded "+nodes.length+" nodes")}catch(e){panel.hidden=true;throw e}}
 function openSaveChoices(){
  $("modalTitle").textContent="Save Project";
  $("modalBody").innerHTML='<p class="subtle">Where would you like to save this project?</p><div class="save-choice-list"><button type="button" class="save-choice" id="saveForNextTime"><strong>Save for next time</strong><span>Save the current project on this device so it can be loaded again later. Do not add it to the Script Library.</span></button><button type="button" class="save-choice" id="saveToLibrary"><strong>Save to Library</strong><span>Keep a named copy in your Script Library, where you can manage and reopen it.</span></button></div>';
