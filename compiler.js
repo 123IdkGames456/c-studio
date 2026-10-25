@@ -293,7 +293,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="vectorcross"){expression="Vector3.Cross("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="Vector3";
    }else if(n.type==="vectornormalize"){const v=valueForInput(n,"value",path,"Vector3");expression="("+v+".sqrMagnitude > 0f ? "+v+".normalized : Vector3.zero)";sourceType="Vector3";
    }else if(n.type==="forloop"){expression="__blueprintLoopIndex_"+n.id;sourceType="int";
-   }else if(n.type==="foreach"){const t=n.values?.elementType||"GameObject",item=safeIdentifier(n.values?.itemName||"item","item",new Set());if((n.values?.mode||"Loop")==="GetElement"){const l=valueForInput(n,"list",path,"List<"+t+">"),ix=valueForInput(n,"index",path,"int");expression="("+l+" != null && "+ix+" >= 0 && "+ix+" < "+l+".Count ? "+l+"["+ix+"] : "+typedDefault(t)+")";}else expression=item;sourceType=t;
+   }else if(n.type==="foreach"){expression=safeIdentifier(n.values?.itemName||"item","item",new Set());sourceType=n.values?.elementType||"GameObject";
    }else if(["triggerenter","triggerstay","triggerexit"].includes(n.type)){expression="other";sourceType="Collider";
    }else if(["collisionenter","collisionstay","collisionexit"].includes(n.type)){expression="collision";sourceType="Collision";
    }else if(n.type==="self"){
@@ -472,7 +472,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    else if(n.type==="continueloop"){out.push(p+"continue;");break}
    else if(n.type==="forloop"){
     const ix="__blueprintLoopIndex_"+n.id,a=cleanNumber(n.values?.start??"0","int"),b=cleanNumber(n.values?.end??"5","int");out.push(p+"for (int "+ix+" = "+a+"; "+ix+" < "+b+"; "+ix+"++)",p+"{");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+1,new Set(visited)));out.push(p+"}");current=connected(n.id,"Completed");continue;
-   }else if(n.type==="foreach"&&(n.values?.mode||"Loop")==="Loop"){
+   }else if(n.type==="foreach"){
     const item=safeIdentifier(n.values?.itemName||"item","item",new Set()),t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",new Set(),"List<"+t+">");out.push(p+"if ("+l+" != null)",p+"{",p+"    foreach ("+t+" "+item+" in "+l+")",p+"    {");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+2,new Set(visited)));out.push(p+"    }",p+"}");current=connected(n.id,"Completed");continue;
    }else if(n.type==="whileloop"){
     const c=valueForInput(n,"condition",new Set(),"bool");out.push(p+"while ("+c+")",p+"{");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+1,new Set(visited)));out.push(p+"}");current=connected(n.id,"Completed");continue;
