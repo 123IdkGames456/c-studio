@@ -47,7 +47,7 @@ function nodeInputs(n){
 }
 function nodeOutputs(n){
  const d=getDef(n?.type);
- if(n?.type==="foreach"&&(n.values?.mode||"Loop")!=="GetElement")return [];
+
  if(n?.type!=="getcomponentvalue")return d?.dataOut||[];
  const ct=connectedComponentType(n);
  if(!ct)return [];
