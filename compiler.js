@@ -270,7 +270,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="randomsphere"){expression="UnityEngine.Random.insideUnitSphere";sourceType="Vector3";
    }else if(n.type==="isgrounded"){const c=valueForInput(n,"controller",path,"CharacterController");expression="("+c+" != null && "+c+".isGrounded)";sourceType="bool";
    }else if(n.type==="getvelocity"){const b=valueForInput(n,"body",path,"Rigidbody");expression="("+b+" != null ? "+b+".velocity : Vector3.zero)";sourceType="Vector3";
-   }else if(n.type==="raycast"||n.type==="spherecast"){const o=valueForInput(n,"origin",path,"Vector3"),d=valueForInput(n,"direction",path,"Vector3"),max=cleanNumber(n.values?.maxDistance??(n.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(n.values?.radius??"0.5","float"),debugConnected=!!dataLink(n.id,"showDebug"),debugEnabled=n.values?.showDebug===true||n.values?.showDebug==="true",show=debugConnected?valueForInput(n,"showDebug",path,"bool"):"true",isSphere=n.type==="spherecast",call=isSphere?"Physics.SphereCast(__o, "+radius+", __d, out __h, __max)":"Physics.Raycast(__o, __d, out __h, __max)",drawCalls="Debug.DrawRay(__o, __d.normalized * __max, Color.yellow, 0.1f); "+(isSphere?"__BlueprintDrawWireSphere(__o, "+radius+", Color.cyan); __BlueprintDrawWireSphere(__o + __d.normalized * __max, "+radius+", Color.cyan);":""),draw=debugConnected?"if ("+show+") { "+drawCalls+" }":debugEnabled?drawCalls:"";if(outputPin==="hit"||outputPin==="hitObject"||outputPin==="point"){const result="((Func<RaycastHit>)(() => { Vector3 __o = "+o+"; Vector3 __d = "+d+"; float __max = "+max+"; "+draw+" RaycastHit __h; "+call+"; return __h; }))()";sourceType=outputPin==="hit"?"RaycastHit":outputPin==="hitObject"?"GameObject":"Vector3";expression=outputPin==="hit"?result:outputPin==="hitObject"?"("+result+".collider != null ? "+result+".collider.gameObject : null)":result+".point";}else{expression="((Func<bool>)(() => { Vector3 __o = "+o+"; Vector3 __d = "+d+"; float __max = "+max+"; "+draw+" RaycastHit __h; return "+call+"; }))()";sourceType="bool";}
+   }else if(n.type==="raycast"||n.type==="spherecast"){const o=valueForInput(n,"origin",path,"Vector3"),d=valueForInput(n,"direction",path,"Vector3"),max=cleanNumber(n.values?.maxDistance??(n.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(n.values?.radius??"0.5","float"),isSphere=n.type==="spherecast",call=isSphere?"Physics.SphereCast(__o, "+radius+", __d, out __h, __max)":"Physics.Raycast(__o, __d, out __h, __max)",if(outputPin==="hit"||outputPin==="hitObject"||outputPin==="point"){const result="((Func<RaycastHit>)(() => { Vector3 __o = "+o+"; Vector3 __d = "+d+"; float __max = "+max+"; "+draw+" RaycastHit __h; "+call+"; return __h; }))()";sourceType=outputPin==="hit"?"RaycastHit":outputPin==="hitObject"?"GameObject":"Vector3";expression=outputPin==="hit"?result:outputPin==="hitObject"?"("+result+".collider != null ? "+result+".collider.gameObject : null)":result+".point";}else{expression="((Func<bool>)(() => { Vector3 __o = "+o+"; Vector3 __d = "+d+"; float __max = "+max+"; "+draw+" RaycastHit __h; return "+call+"; }))()";sourceType="bool";}
    }else if(n.type==="overlapsphere"){const c=valueForInput(n,"center",path,"Vector3"),radius=cleanNumber(n.values?.radius??"1","float"),debugConnected=!!dataLink(n.id,"showDebug"),debugEnabled=n.values?.showDebug===true||n.values?.showDebug==="true",show=debugConnected?valueForInput(n,"showDebug",path,"bool"):"true",draw=debugConnected?"if ("+show+") __BlueprintDrawWireSphere(__center, __radius, Color.green);":debugEnabled?"__BlueprintDrawWireSphere(__center, __radius, Color.green);":"";expression="((Func<bool>)(() => { Vector3 __center = "+c+"; float __radius = "+radius+"; "+draw+" return Physics.OverlapSphere(__center, __radius).Length > 0; }))()";sourceType="bool";
    }else if(n.type==="createlist"){const t=n.values?.elementType||"GameObject";expression="new List<"+t+">()";sourceType="List<"+t+">";
    }else if(n.type==="listcount"){const link=dataLink(n.id,"list");if(!link){report("Connect a list to Get List Count.");expression="0";}else{const l=valueExpr(link.from,path,null,link.fromPin);expression="(((dynamic)("+l+")) != null ? ((dynamic)("+l+")).Count : 0)";}sourceType="int";
@@ -604,7 +604,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
   else classFields.push("    private "+type+" "+name+" = "+initial+";");
  }
  const eventKinds=[["awake","Awake",""],["start","Start",""],["onenable","OnEnable",""],["update","Update",""],["fixed","FixedUpdate",""],["ondisable","OnDisable",""],["ondestroy","OnDestroy",""],["triggerenter","OnTriggerEnter","Collider other"],["triggerstay","OnTriggerStay","Collider other"],["triggerexit","OnTriggerExit","Collider other"],["collisionenter","OnCollisionEnter","Collision collision"],["collisionstay","OnCollisionStay","Collision collision"],["collisionexit","OnCollisionExit","Collision collision"]];
- const debugDrawNodes=nodes.filter(n=>["raycast","spherecast","overlapsphere"].includes(n.type)&&(!!dataLink(n.id,"showDebug")||n.values?.showDebug===true||n.values?.showDebug==="true"));
+ const debugDrawNodes=nodes.filter(n=>n.type==="raycast"||(["spherecast","overlapsphere"].includes(n.type)&&(!!dataLink(n.id,"showDebug")||n.values?.showDebug===true||n.values?.showDebug==="true")));
  for(const [type,method,signature] of eventKinds){
   const events=nodes.filter(n=>n.type===type);
   if(!events.length)continue;
@@ -613,18 +613,19 @@ function compile(inputNodes,inputLinks,inputVars,className){
    if(type==="update"){
     for(const dn of debugDrawNodes){
      const linked=!!dataLink(dn.id,"showDebug");
-     const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):"true";
-     methods.push(linked?"        if ("+enabled+") {":"        {");
-     if(dn.type==="raycast"||dn.type==="spherecast"){
-      const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??(dn.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(dn.values?.radius??"0.5","float");
-      methods.push("            Vector3 __debugOrigin = "+origin+";","            Vector3 __debugDirection = "+direction+";","            float __debugDistance = "+distance+";","            Debug.DrawRay(__debugOrigin, __debugDirection.normalized * __debugDistance, Color.yellow, 0f);");
-      if(dn.type==="spherecast")methods.push("            __BlueprintDrawWireSphere(__debugOrigin, "+radius+", Color.cyan);","            __BlueprintDrawWireSphere(__debugOrigin + __debugDirection.normalized * __debugDistance, "+radius+", Color.cyan);");
-      methods.push("            RaycastHit __debugHit;","            Physics."+(dn.type==="spherecast"?"SphereCast(__debugOrigin, "+radius+", __debugDirection, out __debugHit, __debugDistance);":"Raycast(__debugOrigin, __debugDirection, out __debugHit, __debugDistance);"));
+     const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):(dn.values?.showDebug===true||dn.values?.showDebug==="true"?"true":"false");
+     if(dn.type==="raycast"){
+      const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??"100","float");
+      methods.push("        Vector3 __debugOrigin_"+dn.id+" = "+origin+";","        Vector3 __debugDirection_"+dn.id+" = "+direction+";","        float __debugDistance_"+dn.id+" = "+distance+";");
+      methods.push("        if ("+enabled+") Debug.DrawRay(__debugOrigin_"+dn.id+", __debugDirection_"+dn.id+".normalized * __debugDistance_"+dn.id+", Color.yellow, 0f);","        RaycastHit __debugHit_"+dn.id+";","        Physics.Raycast(__debugOrigin_"+dn.id+", __debugDirection_"+dn.id+", out __debugHit_"+dn.id+", __debugDistance_"+dn.id+");");
+     }else if(dn.type==="spherecast"){
+      const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??"10","float"),radius=cleanNumber(dn.values?.radius??"0.5","float");
+      methods.push("        Vector3 __debugOrigin_"+dn.id+" = "+origin+";","        Vector3 __debugDirection_"+dn.id+" = "+direction+";","        float __debugDistance_"+dn.id+" = "+distance+";");
+      methods.push("        if ("+enabled+") { Debug.DrawRay(__debugOrigin_"+dn.id+", __debugDirection_"+dn.id+".normalized * __debugDistance_"+dn.id+", Color.yellow, 0f); __BlueprintDrawWireSphere(__debugOrigin_"+dn.id+", "+radius+", Color.cyan); __BlueprintDrawWireSphere(__debugOrigin_"+dn.id+" + __debugDirection_"+dn.id+".normalized * __debugDistance_"+dn.id+", "+radius+", Color.cyan); }","        RaycastHit __debugHit_"+dn.id+";","        Physics.SphereCast(__debugOrigin_"+dn.id+", "+radius+", __debugDirection_"+dn.id+", out __debugHit_"+dn.id+", __debugDistance_"+dn.id+");");
      }else{
       const center=valueForInput(dn,"center",new Set([dn.id]),"Vector3"),radius=cleanNumber(dn.values?.radius??"1","float");
-      methods.push("            Vector3 __debugCenter = "+center+";","            __BlueprintDrawWireSphere(__debugCenter, "+radius+", Color.green);","            Physics.OverlapSphere(__debugCenter, "+radius+");");
+      methods.push("        Vector3 __debugCenter_"+dn.id+" = "+center+";","        if ("+enabled+") __BlueprintDrawWireSphere(__debugCenter_"+dn.id+", "+radius+", Color.green);","        Physics.OverlapSphere(__debugCenter_"+dn.id+", "+radius+");");
      }
-     methods.push("        }");
     }
    }
 
@@ -640,20 +641,21 @@ function compile(inputNodes,inputLinks,inputVars,className){
  if(debugDrawNodes.length&&!nodes.some(n=>n.type==="update")){
   methods.push("    private void Update()","    {");
   for(const dn of debugDrawNodes){
-   const linked=!!dataLink(dn.id,"showDebug");
-   const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):"true";
-   methods.push(linked?"        if ("+enabled+") {":"        {");
-   if(dn.type==="raycast"||dn.type==="spherecast"){
-    const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??(dn.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(dn.values?.radius??"0.5","float");
-    methods.push("            Vector3 __debugOrigin = "+origin+";","            Vector3 __debugDirection = "+direction+";","            float __debugDistance = "+distance+";","            Debug.DrawRay(__debugOrigin, __debugDirection.normalized * __debugDistance, Color.yellow, 0f);");
-    if(dn.type==="spherecast")methods.push("            __BlueprintDrawWireSphere(__debugOrigin, "+radius+", Color.cyan);","            __BlueprintDrawWireSphere(__debugOrigin + __debugDirection.normalized * __debugDistance, "+radius+", Color.cyan);");
-    methods.push("            RaycastHit __debugHit;","            Physics."+(dn.type==="spherecast"?"SphereCast(__debugOrigin, "+radius+", __debugDirection, out __debugHit, __debugDistance);":"Raycast(__debugOrigin, __debugDirection, out __debugHit, __debugDistance);"));
-   }else{
-    const center=valueForInput(dn,"center",new Set([dn.id]),"Vector3"),radius=cleanNumber(dn.values?.radius??"1","float");
-    methods.push("            Vector3 __debugCenter = "+center+";","            __BlueprintDrawWireSphere(__debugCenter, "+radius+", Color.green);","            Physics.OverlapSphere(__debugCenter, "+radius+");");
-   }
-   methods.push("        }");
-  }
+     const linked=!!dataLink(dn.id,"showDebug");
+     const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):(dn.values?.showDebug===true||dn.values?.showDebug==="true"?"true":"false");
+     if(dn.type==="raycast"){
+      const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??"100","float");
+      methods.push("        Vector3 __debugOrigin_"+dn.id+" = "+origin+";","        Vector3 __debugDirection_"+dn.id+" = "+direction+";","        float __debugDistance_"+dn.id+" = "+distance+";");
+      methods.push("        if ("+enabled+") Debug.DrawRay(__debugOrigin_"+dn.id+", __debugDirection_"+dn.id+".normalized * __debugDistance_"+dn.id+", Color.yellow, 0f);","        RaycastHit __debugHit_"+dn.id+";","        Physics.Raycast(__debugOrigin_"+dn.id+", __debugDirection_"+dn.id+", out __debugHit_"+dn.id+", __debugDistance_"+dn.id+");");
+     }else if(dn.type==="spherecast"){
+      const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??"10","float"),radius=cleanNumber(dn.values?.radius??"0.5","float");
+      methods.push("        Vector3 __debugOrigin_"+dn.id+" = "+origin+";","        Vector3 __debugDirection_"+dn.id+" = "+direction+";","        float __debugDistance_"+dn.id+" = "+distance+";");
+      methods.push("        if ("+enabled+") { Debug.DrawRay(__debugOrigin_"+dn.id+", __debugDirection_"+dn.id+".normalized * __debugDistance_"+dn.id+", Color.yellow, 0f); __BlueprintDrawWireSphere(__debugOrigin_"+dn.id+", "+radius+", Color.cyan); __BlueprintDrawWireSphere(__debugOrigin_"+dn.id+" + __debugDirection_"+dn.id+".normalized * __debugDistance_"+dn.id+", "+radius+", Color.cyan); }","        RaycastHit __debugHit_"+dn.id+";","        Physics.SphereCast(__debugOrigin_"+dn.id+", "+radius+", __debugDirection_"+dn.id+", out __debugHit_"+dn.id+", __debugDistance_"+dn.id+");");
+     }else{
+      const center=valueForInput(dn,"center",new Set([dn.id]),"Vector3"),radius=cleanNumber(dn.values?.radius??"1","float");
+      methods.push("        Vector3 __debugCenter_"+dn.id+" = "+center+";","        if ("+enabled+") __BlueprintDrawWireSphere(__debugCenter_"+dn.id+", "+radius+", Color.green);","        Physics.OverlapSphere(__debugCenter_"+dn.id+", "+radius+");");
+     }
+    }
   methods.push("    }","");
  }
  if(!eventKinds.some(([type])=>nodes.some(n=>n.type===type))){
