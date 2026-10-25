@@ -27,7 +27,7 @@
   <main class="main">
     <div class="workspace-toolbar">
       <div class="view-tabs"><button id="graphTab" class="view-tab active" type="button">Blueprint Graph</button><button id="csharpTab" class="view-tab" type="button">C# Code</button><span id="graphStatus"> · Ready</span></div>
-      <div class="toolbar-actions"><button id="loadTemplate">Load a template</button><button id="toggleVariables" type="button">Variables</button><button id="addVariable">＋ Variable</button><button id="fitGraph">Fit graph</button><button id="clearGraph">Clear graph</button></div>
+      <div class="toolbar-actions"><button id="loadTemplate">Load a template</button><button id="exitCustomEditor" type="button" hidden>Save &amp; Exit Custom</button><button id="toggleVariables" type="button">Variables</button><button id="addVariable">＋ Variable</button><button id="fitGraph">Fit graph</button><button id="clearGraph">Clear graph</button></div>
     </div>
     <div id="workspace" class="workspace">
       <div id="canvas" class="canvas"><svg id="wires" class="wires"></svg><div id="emptyState" class="empty-state"><div class="empty-icon">⌘</div><strong>Build your script with nodes</strong><span>Add an event block, then connect actions and values.</span><button id="starterExample">Load starter example</button></div></div>
@@ -46,5 +46,5 @@
 <div id="loadProgress" class="load-progress" hidden><div class="load-progress-card"><div class="load-progress-mark">◈</div><strong id="loadProgressTitle">Loading script</strong><p id="loadProgressDetail">Preparing project…</p><div class="load-progress-track"><span id="loadProgressBar"></span></div><div id="loadProgressStages" class="load-progress-stages"></div><p id="loadProgressPercent">0%</p></div></div>
 <div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-title"><strong id="modalTitle">Create variable</strong><button id="modalClose">×</button></div><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel">Cancel</button><button id="modalConfirm" class="primary">Create</button></div></div></div>
 <input id="fileInput" type="file" accept=".json,application/json" hidden><input id="libraryJsonInput" type="file" accept=".json,application/json" hidden>
-<script src="types.js?v=object-variable-compat-1"></script><script src="blocks.js?v=sphere-preview-fix-20261025"></script><script src="compiler.js?v=sphere-preview-fix-20261025"></script><script src="storage.js"></script><script src="script.js?v=sphere-preview-fix-20261025"></script>
+<script src="types.js?v=object-variable-compat-1"></script><script src="blocks.js?v=custom-blocks-20261025"></script><script src="compiler.js?v=custom-blocks-20261025"></script><script src="storage.js"></script><script src="script.js?v=custom-blocks-20261025"></script>
 </body></html>
