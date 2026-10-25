@@ -752,6 +752,23 @@ $("fitGraph").onclick=()=>{$("workspace").scrollTo({left:0,top:0,behavior:"smoot
 $("projectName").addEventListener("input",renderCode);
 $("workspace").addEventListener("scroll",()=>{drawWires();drawGraphOverview()});
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){pendingPin=null;renderNodes()}if((e.key==="Delete"||e.key==="Backspace")&&selectedNode&&!["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName)){nodes=nodes.filter(n=>n.id!==selectedNode);links=links.filter(l=>l.from!==selectedNode&&l.to!==selectedNode);selectedNode=null;renderAll()}});
+window.addEventListener("cstudio:load-server-script",async event=>{
+ const entry=event.detail?.entry;
+ const button=event.detail?.button;
+ if(!entry)return;
+ try{
+  let project=entry.payload;
+  if(typeof project==="string")project=JSON.parse(project);
+  if(!project||!Array.isArray(project.nodes))throw new Error("This community entry does not contain a valid Blueprint project.");
+  await loadProjectWithProgress(project);
+  currentLibraryId=null;
+  $("libraryPanel").hidden=true;
+  status("Loaded community script: "+(entry.name||project.projectName||"Blueprint project"));
+ }catch(error){
+  if(button){button.disabled=false;button.textContent="Load into Canvas"}
+  $("exploreStatus").textContent=error?.message||"Could not load this community script.";
+ }
+});
 renderAll();
 const saved=BlueprintStorage.load();if(saved)loadState(saved);
 })();
