@@ -1,7 +1,7 @@
 const SPREADSHEET_ID = "1nKedb6JGWsrFsXy9CVmXH2dfs57xDseXZgNW3609boA";
 const CODES_SHEET_NAME = "Published Codes";
 const CUSTOM_BLOCKS_SHEET_NAME = "Published Custom Blocks";
-const HEADERS = ["id", "type", "name", "description", "author", "createdAt", "payload"];
+const HEADERS = ["id", "type", "name", "description", "author", "createdAt", "payload", "passwordSalt", "passwordHash"];
 
 function setupExploreSheets() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -60,19 +60,55 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e && e.postData && e.postData.contents || "{}");
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    if (data.action === "manage") {
+      const id = String(data.id || "");
+      const password = String(data.password || "");
+      const manageAction = String(data.manageAction || "");
+      if (!id || !password) throw new Error("A listing ID and owner password are required.");
+      if (!["rename", "delete"].includes(manageAction)) throw new Error("Unsupported management action.");
+      const sheets = setupAndGetSheets_();
+      let foundSheet = null, foundRow = -1, headers = null, row = null;
+      sheets.some(sheet => {
+        const values = sheet.getDataRange().getValues();
+        if (values.length < 2) return false;
+        const hs = values[0].map(String), idIndex = hs.indexOf("id");
+        for (let r = 1; r < values.length; r++) {
+          if (String(values[r][idIndex]) === id) {
+            foundSheet = sheet; foundRow = r + 1; headers = hs; row = values[r]; return true;
+          }
+        }
+        return false;
+      });
+      if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
+      const salt = String(row[headers.indexOf("passwordSalt")] || "");
+      const storedHash = String(row[headers.indexOf("passwordHash")] || "");
+      if (!salt || !storedHash || passwordHash_(salt, password) !== storedHash) throw new Error("Incorrect owner password.");
+      if (manageAction === "delete") {
+        foundSheet.deleteRow(foundRow);
+        return output_({ ok: true, message: "Listing removed. Existing local copies are unaffected." });
+      }
+      const newName = String(data.name || "").trim();
+      if (!newName) throw new Error("A new public name is required.");
+      foundSheet.getRange(foundRow, headers.indexOf("name") + 1).setValue(newName.slice(0, 120));
+      return output_({ ok: true, message: "Public listing renamed." });
+    }
+
     if (data.action !== "publish") throw new Error("Unsupported action.");
     if (!["code", "custom"].includes(data.type)) throw new Error("Type must be code or custom.");
     if (!String(data.name || "").trim()) throw new Error("A published name is required.");
+    if (String(data.password || "").length < 6) throw new Error("Owner password must be at least 6 characters.");
     if (!data.payload || typeof data.payload !== "object") throw new Error("A valid item payload is required.");
 
     const serialized = JSON.stringify(data.payload);
     if (serialized.length > 450000) throw new Error("This item is too large to publish.");
 
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const targetName = data.type === "code" ? CODES_SHEET_NAME : CUSTOM_BLOCKS_SHEET_NAME;
     const sheet = getOrCreateSheet_(ss, targetName);
     ensureHeaders_(sheet);
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+    const salt = Utilities.getUuid();
     const record = {
       id: Utilities.getUuid(),
       type: data.type,
@@ -80,13 +116,27 @@ function doPost(e) {
       description: String(data.description || "").trim().slice(0, 500),
       author: String(data.author || "C-Studio user").trim().slice(0, 80),
       createdAt: new Date().toISOString(),
-      payload: serialized
+      payload: serialized,
+      passwordSalt: salt,
+      passwordHash: passwordHash_(salt, String(data.password))
     };
     sheet.appendRow(headers.map(header => record[header] === undefined ? "" : record[header]));
     return output_({ ok: true, id: record.id, message: "Published successfully." });
   } catch (err) {
     return output_({ ok: false, error: String(err.message || err) });
   }
+}
+
+function passwordHash_(salt, password) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    salt + ":" + password,
+    Utilities.Charset.UTF_8
+  );
+  return bytes.map(byte => {
+    const value = (byte + 256) % 256;
+    return ("0" + value.toString(16)).slice(-2);
+  }).join("");
 }
 
 function setupAndGetSheets_() {
