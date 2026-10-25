@@ -604,17 +604,55 @@ function compile(inputNodes,inputLinks,inputVars,className){
   else classFields.push("    private "+type+" "+name+" = "+initial+";");
  }
  const eventKinds=[["awake","Awake",""],["start","Start",""],["onenable","OnEnable",""],["update","Update",""],["fixed","FixedUpdate",""],["ondisable","OnDisable",""],["ondestroy","OnDestroy",""],["triggerenter","OnTriggerEnter","Collider other"],["triggerstay","OnTriggerStay","Collider other"],["triggerexit","OnTriggerExit","Collider other"],["collisionenter","OnCollisionEnter","Collision collision"],["collisionstay","OnCollisionStay","Collision collision"],["collisionexit","OnCollisionExit","Collision collision"]];
+ const debugDrawNodes=nodes.filter(n=>["raycast","spherecast","overlapsphere"].includes(n.type)&&(!!dataLink(n.id,"showDebug")||n.values?.showDebug===true||n.values?.showDebug==="true"));
  for(const [type,method,signature] of eventKinds){
   const events=nodes.filter(n=>n.type===type);
   if(!events.length)continue;
   methods.push("    private void "+method+"("+signature+")","    {");
   for(const ev of events){
+   if(type==="update"){
+    for(const dn of debugDrawNodes){
+     const linked=!!dataLink(dn.id,"showDebug");
+     const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):"true";
+     methods.push(linked?"        if ("+enabled+") {":"        {");
+     if(dn.type==="raycast"||dn.type==="spherecast"){
+      const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??(dn.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(dn.values?.radius??"0.5","float");
+      methods.push("            Vector3 __debugOrigin = "+origin+";","            Vector3 __debugDirection = "+direction+";","            float __debugDistance = "+distance+";","            Debug.DrawRay(__debugOrigin, __debugDirection.normalized * __debugDistance, Color.yellow, 0f);");
+      if(dn.type==="spherecast")methods.push("            __BlueprintDrawWireSphere(__debugOrigin, "+radius+", Color.cyan);","            __BlueprintDrawWireSphere(__debugOrigin + __debugDirection.normalized * __debugDistance, "+radius+", Color.cyan);");
+      methods.push("            RaycastHit __debugHit;","            Physics."+(dn.type==="spherecast"?"SphereCast(__debugOrigin, "+radius+", __debugDirection, out __debugHit, __debugDistance);":"Raycast(__debugOrigin, __debugDirection, out __debugHit, __debugDistance);"));
+     }else{
+      const center=valueForInput(dn,"center",new Set([dn.id]),"Vector3"),radius=cleanNumber(dn.values?.radius??"1","float");
+      methods.push("            Vector3 __debugCenter = "+center+";","            __BlueprintDrawWireSphere(__debugCenter, "+radius+", Color.green);","            Physics.OverlapSphere(__debugCenter, "+radius+");");
+     }
+     methods.push("        }");
+    }
+   }
+
    if(["triggerenter","triggerstay","triggerexit"].includes(type)){
     const show=dataLink(ev.id,"showDebug")?valueForInput(ev,"showDebug",new Set([ev.id]),"bool"):(ev.values?.showDebug===true||ev.values?.showDebug==="true"?"true":"false");
     methods.push("        if ("+show+")","        {","            Collider[] __blueprintOwnColliders = GetComponents<Collider>();","            foreach (Collider __blueprintCollider in __blueprintOwnColliders)","                if (__blueprintCollider != null) __BlueprintDrawBounds(__blueprintCollider.bounds, Color.magenta);","            if (other != null) __BlueprintDrawBounds(other.bounds, Color.yellow);","        }");
    }
    const next=connected(ev.id,"Then");
    if(next)methods.push(...emitFlow(next,2,new Set([ev.id])));
+  }
+  methods.push("    }","");
+ }
+ if(debugDrawNodes.length&&!nodes.some(n=>n.type==="update")){
+  methods.push("    private void Update()","    {");
+  for(const dn of debugDrawNodes){
+   const linked=!!dataLink(dn.id,"showDebug");
+   const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):"true";
+   methods.push(linked?"        if ("+enabled+") {":"        {");
+   if(dn.type==="raycast"||dn.type==="spherecast"){
+    const origin=valueForInput(dn,"origin",new Set([dn.id]),"Vector3"),direction=valueForInput(dn,"direction",new Set([dn.id]),"Vector3"),distance=cleanNumber(dn.values?.maxDistance??(dn.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(dn.values?.radius??"0.5","float");
+    methods.push("            Vector3 __debugOrigin = "+origin+";","            Vector3 __debugDirection = "+direction+";","            float __debugDistance = "+distance+";","            Debug.DrawRay(__debugOrigin, __debugDirection.normalized * __debugDistance, Color.yellow, 0f);");
+    if(dn.type==="spherecast")methods.push("            __BlueprintDrawWireSphere(__debugOrigin, "+radius+", Color.cyan);","            __BlueprintDrawWireSphere(__debugOrigin + __debugDirection.normalized * __debugDistance, "+radius+", Color.cyan);");
+    methods.push("            RaycastHit __debugHit;","            Physics."+(dn.type==="spherecast"?"SphereCast(__debugOrigin, "+radius+", __debugDirection, out __debugHit, __debugDistance);":"Raycast(__debugOrigin, __debugDirection, out __debugHit, __debugDistance);"));
+   }else{
+    const center=valueForInput(dn,"center",new Set([dn.id]),"Vector3"),radius=cleanNumber(dn.values?.radius??"1","float");
+    methods.push("            Vector3 __debugCenter = "+center+";","            __BlueprintDrawWireSphere(__debugCenter, "+radius+", Color.green);","            Physics.OverlapSphere(__debugCenter, "+radius+");");
+   }
+   methods.push("        }");
   }
   methods.push("    }","");
  }
