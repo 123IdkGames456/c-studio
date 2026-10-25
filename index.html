@@ -47,18 +47,15 @@
 
 <section id="publishModal" class="publish-modal" hidden role="dialog" aria-modal="true" aria-labelledby="publishTitle">
   <div class="publish-card">
-    <div class="publish-heading"><div class="publish-mark">◈</div><div><strong id="publishTitle">Publish to server</strong><p id="publishSubtitle">Enter the library password to publish this script.</p></div><button id="publishClose" type="button" aria-label="Close publish menu">×</button></div>
-    <form id="publishForm">
-      <label class="publish-label" for="publishPassword">Library password</label>
-      <input id="publishPassword" type="password" autocomplete="current-password" placeholder="Enter password" required>
-      <div id="publishStatus" class="publish-status" role="status" aria-live="polite">Your password is checked securely by the server.</div>
-      <div class="publish-actions"><button id="publishCancel" type="button">Cancel</button><button id="publishSubmit" class="primary" type="submit">Publish script</button></div>
-    </form>
-    <div id="publishLoading" class="publish-loading" hidden><span class="publish-spinner"></span><div><strong>Contacting server…</strong><p>Checking password and saving your script.</p></div></div>
+    <div class="publish-heading"><div class="publish-mark">◈</div><div><strong id="publishTitle">Publish to server</strong><p id="publishSubtitle">Sign in with Google to publish this script.</p></div><button id="publishClose" type="button" aria-label="Close publish menu">×</button></div>
+    <div id="googleSignInButton"></div>
+    <div id="publishStatus" class="publish-status" role="status" aria-live="polite">Your Google account will be verified by the server. Your email will be shown in Explore.</div>
+    <div class="publish-actions"><button id="publishCancel" type="button">Cancel</button></div>
+    <div id="publishLoading" class="publish-loading" hidden><span class="publish-spinner"></span><div><strong>Contacting server…</strong><p>Verifying your Google account and saving your script.</p></div></div>
   </div>
 </section>
 <div id="loadProgress" class="load-progress" hidden><div class="load-progress-card"><div class="load-progress-mark">◈</div><strong id="loadProgressTitle">Loading script</strong><p id="loadProgressDetail">Preparing project…</p><div class="load-progress-track"><span id="loadProgressBar"></span></div><div id="loadProgressStages" class="load-progress-stages"></div><p id="loadProgressPercent">0%</p></div></div>
 <div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-title"><strong id="modalTitle">Create variable</strong><button id="modalClose">×</button></div><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel">Cancel</button><button id="modalConfirm" class="primary">Create</button></div></div></div>
 <input id="fileInput" type="file" accept=".json,application/json" hidden><input id="libraryJsonInput" type="file" accept=".json,application/json" hidden>
-<script src="types.js?v=object-variable-compat-1"></script><script src="blocks.js?v=rotation-rate-dropdown-1"></script><script src="compiler.js?v=object-variable-compat-1"></script><script src="storage.js"></script><script src="script.js?v=publish-server-1"></script><script src="server-library.js?v=library-api-20261025"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script><script src="types.js?v=object-variable-compat-1"></script><script src="blocks.js?v=rotation-rate-dropdown-1"></script><script src="compiler.js?v=object-variable-compat-1"></script><script src="storage.js"></script><script src="script.js?v=publish-server-1"></script><script src="server-library.js?v=google-publish-1"></script>
 </body></html>
