@@ -236,6 +236,7 @@ function addNode(type,x,y,values={}) {
  nodes.push(n);selectedNode=n.id;renderAll();return n;
 }
 function customPortTypes(){return [...new Set([...(BlueprintTypes.all||[]),"object","UnityEngine.Object","Vector2","Vector3","Vector4","Quaternion","Color","List<int>","List<float>","List<bool>","List<string>","List<GameObject>","List<Transform>","List<Vector2>","List<Vector3>"])].sort((a,b)=>a.localeCompare(b))}
+function customPortDefault(type){if(type==="string")return "";if(type==="bool")return "false";if(["int","float","double","decimal","long","short","byte","uint","ulong"].includes(type))return "0";if(["Vector2","Vector3","Vector4"].includes(type))return type+".zero";if(type==="Quaternion")return "Quaternion.identity";if(type==="Color")return "Color.white";if(type==="Color32")return "Color32.white";if(type.startsWith("List<")||type.endsWith("[]"))return "[]";return "null"}
 function saveCurrentCustomDefinition(){
  if(!customEditingId)return;
  const def=customBlocks.find(x=>x.id===customEditingId);if(!def)return;
@@ -256,7 +257,7 @@ function openCreateCustomBlock(){
 function enterCustomEditor(id){
  if(customEditingId){status("Exit the current custom block before opening another");return}
  const def=customBlocks.find(x=>x.id===id);if(!def)return;
- customParentState={nodes,links,variables,nextNode,nextVariable,selectedNode,projectName:$("projectName").value};
+ customParentState={nodes,links,variables,nextNode,nextVariable,selectedNode,projectName:$("projectName").value,scrollLeft:$("workspace").scrollLeft,scrollTop:$("workspace").scrollTop};
  customEditingId=id;
  nodes=JSON.parse(JSON.stringify(def.nodes||[]));links=JSON.parse(JSON.stringify(def.links||[]));variables=JSON.parse(JSON.stringify(def.variables||[]));
  nextNode=def.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=def.nextVariable||variables.length+1;
@@ -264,19 +265,19 @@ function enterCustomEditor(id){
  if(!nodes.some(n=>n.type==="customoutput"))nodes.push({id:nextNode++,type:"customoutput",x:560,y:120,values:{ports:[]}});
  selectedNode=nodes.find(n=>n.type==="custominput")?.id||nodes[0]?.id||null;
  $("exitCustomEditor").hidden=false;$("projectName").disabled=true;document.querySelector(".top-actions").style.display="none";
- status("Editing custom node: "+def.name);renderAll();
+ $("workspace").scrollTo({left:0,top:0,behavior:"auto"});status("Editing custom node: "+def.name);renderAll();
 }
 function exitCustomEditor(){
  if(!customEditingId||!customParentState)return;
  const def=customBlocks.find(x=>x.id===customEditingId);saveCurrentCustomDefinition();
  const parent=customParentState;customEditingId=null;customParentState=null;
  nodes=parent.nodes;links=parent.links;variables=parent.variables;nextNode=parent.nextNode;nextVariable=parent.nextVariable;selectedNode=parent.selectedNode;
- $("projectName").value=parent.projectName||"My Blueprint Project";$("projectName").disabled=false;
+ $("projectName").value=parent.projectName||"My Blueprint Project";$("projectName").disabled=false;$("workspace").scrollTo({left:parent.scrollLeft||0,top:parent.scrollTop||0,behavior:"auto"});
  $("exitCustomEditor").hidden=true;document.querySelector(".top-actions").style.display="flex";
  syncCustomDefs();renderAll();status("Saved custom node: "+(def?.name||"Custom Node"));
 }
 function addCustomPort(boundary,portType){
- const port={id:"port_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,5),name:(boundary.type==="custominput"?"Input":"Output")+(boundary.values.ports.length+1),type:portType||"float",default:BlueprintTypes.defaultValue(portType||"float")};
+ const port={id:"port_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,5),name:(boundary.type==="custominput"?"Input":"Output")+(boundary.values.ports.length+1),type:portType||"float",default:customPortDefault(portType||"float")};
  boundary.values.ports.push(port);renderAll();
 }
 function addVariable(v={}) {
@@ -639,6 +640,7 @@ function showContextMenu(x,y,items){
  document.body.appendChild(menu);const r=menu.getBoundingClientRect();if(r.right>window.innerWidth)menu.style.left=Math.max(4,window.innerWidth-r.width-4)+"px";if(r.bottom>window.innerHeight)menu.style.top=Math.max(4,window.innerHeight-r.height-4)+"px";setTimeout(()=>document.addEventListener("pointerdown",outsideContextMenu,true),0);
 }
 function renderVariables(){
+ const heading=document.querySelector(".variables-panel-heading strong"),description=document.querySelector(".variables-panel-heading p");if(heading)heading.textContent=customEditingId?"CUSTOM BLOCK VARIABLES":"PROJECT VARIABLES";if(description)description.textContent=customEditingId?"These variables are private to each instance of this custom block. Every instance gets its own values.":"Create variables here. Variable blocks use dropdowns, never manually typed names.";
  $("variableList").innerHTML=variables.map(v=>'<div class="variable-card"><div class="variable-top"><strong>'+esc(v.name)+'</strong><span class="type-pill">'+esc(v.type)+'</span></div><div class="variable-meta">'+esc(v.access==="public-hidden"?"Public · hidden from Inspector":v.access==="public-inspector"?"Public · Inspector":v.access==="private"?"Private · hidden":"Private · Inspector")+' · '+esc(v.initial)+'</div><div class="variable-buttons"><button data-edit-var="'+v.id+'">Edit</button><button data-delete-var="'+v.id+'">Delete</button></div></div>').join("")||'<div class="subtle">No variables yet. Create one to use it in Get Variable or Set Variable blocks.</div>';
  $("variableList").querySelectorAll("[data-edit-var]").forEach(b=>b.onclick=()=>openVariableModal(getVar(b.dataset.editVar)));
  $("variableList").querySelectorAll("[data-delete-var]").forEach(b=>b.onclick=()=>{const id=b.dataset.deleteVar;variables=variables.filter(v=>v.id!==id);nodes.forEach(n=>{if(n.values.variable===id)n.values.variable="";if(n.values.componentVariable===id)n.values.componentVariable=""});links=links.filter(l=>!((getNode(l.from)?.type==="getvar"||getNode(l.to)?.type==="setvar")&&l.kind==="data"));renderAll()});
@@ -651,7 +653,7 @@ function renderInspector(){
  if(n.type==="custominput"||n.type==="customoutput"){
   const ports=n.values.ports||(n.values.ports=[]),isInput=n.type==="custominput";
   html+='<div class="inspector-section"><strong>'+(isInput?'Named inputs':'Named outputs')+'</strong><p class="subtle">'+(isInput?'These pins appear on every instance of this custom node. Unconnected inputs use their default value.':'These pins expose values produced inside this custom node.')+'</p></div>';
-  html+=ports.map(p=>'<div class="custom-port-editor"><input data-port-field="name" data-port-id="'+esc(p.id)+'" aria-label="Pin name" value="'+esc(p.name)+'" placeholder="Pin name"><select data-port-field="type" data-port-id="'+esc(p.id)+'" aria-label="Pin type">'+customPortTypes().map(t=>'<option value="'+esc(t)+'" '+(t===p.type?'selected':'')+'>'+esc(t)+'</option>').join("")+'</select>'+(isInput?'<input data-port-field="default" data-port-id="'+esc(p.id)+'" aria-label="Default value" value="'+esc(p.default??BlueprintTypes.defaultValue(p.type||"float"))+'" placeholder="Default value">':'')+'<button type="button" data-port-remove="'+esc(p.id)+'" aria-label="Remove pin">×</button></div>').join("");
+  html+=ports.map(p=>'<div class="custom-port-editor"><input data-port-field="name" data-port-id="'+esc(p.id)+'" aria-label="Pin name" value="'+esc(p.name)+'" placeholder="Pin name"><select data-port-field="type" data-port-id="'+esc(p.id)+'" aria-label="Pin type">'+customPortTypes().map(t=>'<option value="'+esc(t)+'" '+(t===p.type?'selected':'')+'>'+esc(t)+'</option>').join("")+'</select>'+(isInput?'<input data-port-field="default" data-port-id="'+esc(p.id)+'" aria-label="Default value" value="'+esc(p.default??customPortDefault(p.type||"float"))+'" placeholder="Default value">':'')+'<button type="button" data-port-remove="'+esc(p.id)+'" aria-label="Remove pin">×</button></div>').join("");
   html+='<button type="button" id="addCustomPort" class="primary" style="width:100%;margin-top:9px">＋ Add named '+(isInput?'input':'output')+'</button>';
  }
  if(n.type==="setcomponent"){
@@ -665,7 +667,7 @@ function renderInspector(){
  $("nodeInspector").querySelectorAll("[data-port-field]").forEach(el=>el.addEventListener("change",()=>{
   const port=(n.values.ports||[]).find(p=>p.id===el.dataset.portId);if(!port)return;
   const field=el.dataset.portField;port[field]=el.value;
-  if(field==="type"&&n.type==="custominput")port.default=BlueprintTypes.defaultValue(port.type);
+  if(field==="type"&&n.type==="custominput")port.default=customPortDefault(port.type);
   renderAll();
  }));
  $("nodeInspector").querySelectorAll("[data-port-remove]").forEach(button=>button.addEventListener("click",()=>{
@@ -889,7 +891,7 @@ $("downloadProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safe
 $("exportProject").onclick=()=>BlueprintStorage.download(BlueprintStorage.safeName($("projectName").value)+".cs",$("codeOutput").textContent,"text/plain");
 $("copyCode").onclick=async()=>{try{await navigator.clipboard.writeText($("codeOutput").textContent);status("C# copied")}catch(e){const r=document.createRange();r.selectNodeContents($("codeOutput"));const s=getSelection();s.removeAllRanges();s.addRange(r);status("Select and copy the code")}};
 $("toggleCode").onclick=()=>{codeVisible=!codeVisible;document.querySelector(".code-panel").classList.toggle("collapsed",!codeVisible);$("codeOutput").hidden=!codeVisible;$("toggleCode").textContent=codeVisible?"Hide code":"Show code"};
-$("clearGraph").onclick=()=>{nodes=[];links=[];selectedNode=null;renderAll();status("Graph cleared")};
+$("clearGraph").onclick=()=>{if(customEditingId){nodes=nodes.filter(n=>["custominput","customoutput"].includes(n.type));links=[];nextNode=Math.max(nextNode,...nodes.map(n=>Number(n.id)||0))+1}else{nodes=[];links=[];selectedNode=null}renderAll();status("Graph cleared")};
 $("fitGraph").onclick=()=>{$("workspace").scrollTo({left:0,top:0,behavior:"smooth"});status("Camera reset to top-left")};
 $("projectName").addEventListener("input",renderCode);
 $("workspace").addEventListener("scroll",()=>{drawWires();drawGraphOverview()});
