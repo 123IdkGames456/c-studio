@@ -1,7 +1,9 @@
 const SPREADSHEET_ID = "1nKedb6JGWsrFsXy9CVmXH2dfs57xDseXZgNW3609boA";
 const CODES_SHEET_NAME = "Published Codes";
 const CUSTOM_BLOCKS_SHEET_NAME = "Published Custom Blocks";
-const HEADERS = ["id", "type", "name", "description", "author", "createdAt", "payload", "passwordSalt", "passwordHash", "passwordUpdatedAt"];
+const PAYLOAD_PARTS = ["payload1", "payload2", "payload3", "payload4", "payload5"];
+const PAYLOAD_CHUNK_SIZE = 45000;
+const HEADERS = ["id", "type", "name", "description", "author", "createdAt", ...PAYLOAD_PARTS, "passwordSalt", "passwordHash", "passwordUpdatedAt"];
 
 function setupExploreSheets() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -43,11 +45,7 @@ function doGet(e) {
     }
 
     if (params.action !== "list") {
-      return output_({
-        ok: true,
-        message: "C-Studio Explore backend is running.",
-        sheets: [CODES_SHEET_NAME, CUSTOM_BLOCKS_SHEET_NAME]
-      }, params.callback);
+      return output_({ ok: true, message: "C-Studio Explore backend is running.", sheets: [CODES_SHEET_NAME, CUSTOM_BLOCKS_SHEET_NAME] }, params.callback);
     }
 
     let items = [];
@@ -58,10 +56,8 @@ function doGet(e) {
       values.filter(row => row.some(cell => cell !== "")).forEach(row => {
         const item = {};
         headers.forEach((header, i) => item[header] = row[i]);
-        let payload = item.payload;
-        try {
-          if (typeof payload === "string") payload = JSON.parse(payload);
-        } catch (_) {}
+        const payload = readPayload_(item);
+        try { item.payload = JSON.parse(payload); } catch (_) { item.payload = payload; }
         if (!item.id || !["code", "custom"].includes(String(item.type))) return;
         items.push({
           id: String(item.id),
@@ -69,13 +65,9 @@ function doGet(e) {
           name: String(item.name || "Untitled"),
           description: String(item.description || ""),
           author: String(item.author || ""),
-          createdAt: item.createdAt instanceof Date
-            ? item.createdAt.toISOString()
-            : String(item.createdAt || ""),
-          passwordUpdatedAt: item.passwordUpdatedAt instanceof Date
-            ? item.passwordUpdatedAt.toISOString()
-            : String(item.passwordUpdatedAt || ""),
-          payload: payload
+          createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt || ""),
+          passwordUpdatedAt: item.passwordUpdatedAt instanceof Date ? item.passwordUpdatedAt.toISOString() : String(item.passwordUpdatedAt || ""),
+          payload: item.payload
         });
       });
     });
@@ -140,7 +132,9 @@ function doPost(e) {
     if (!data.payload || typeof data.payload !== "object") throw new Error("A valid item payload is required.");
 
     const serialized = JSON.stringify(data.payload);
-    if (serialized.length > 450000) throw new Error("This item is too large to publish.");
+    if (serialized.length > PAYLOAD_PARTS.length * PAYLOAD_CHUNK_SIZE) {
+      throw new Error("This item is too large to publish. The five payload cells support up to " + (PAYLOAD_PARTS.length * PAYLOAD_CHUNK_SIZE).toLocaleString() + " characters.");
+    }
 
     const targetName = data.type === "code" ? CODES_SHEET_NAME : CUSTOM_BLOCKS_SHEET_NAME;
     const sheet = getOrCreateSheet_(ss, targetName);
@@ -155,10 +149,10 @@ function doPost(e) {
       author: String(data.author || "C-Studio user").trim().slice(0, 80),
       createdAt: new Date().toISOString(),
       passwordUpdatedAt: new Date().toISOString(),
-      payload: serialized,
       passwordSalt: salt,
       passwordHash: passwordHash_(salt, String(data.password))
     };
+    PAYLOAD_PARTS.forEach((key, index) => record[key] = serialized.slice(index * PAYLOAD_CHUNK_SIZE, (index + 1) * PAYLOAD_CHUNK_SIZE));
     sheet.appendRow(headers.map(header => record[header] === undefined ? "" : record[header]));
     return output_({ ok: true, id: record.id, message: "Published successfully." });
   } catch (err) {
@@ -167,11 +161,7 @@ function doPost(e) {
 }
 
 function passwordHash_(salt, password) {
-  const bytes = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    salt + ":" + password,
-    Utilities.Charset.UTF_8
-  );
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + ":" + password, Utilities.Charset.UTF_8);
   return bytes.map(byte => {
     const value = (byte + 256) % 256;
     return ("0" + value.toString(16)).slice(-2);
@@ -192,22 +182,55 @@ function getOrCreateSheet_(ss, name) {
 }
 
 function ensureHeaders_(sheet) {
-  if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  if (lastRow === 0 || lastColumn === 0) {
     sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     sheet.setFrozenRows(1);
     return;
   }
-  const current = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
-  const missing = HEADERS.filter(header => !current.includes(header));
-  if (missing.length) sheet.getRange(1, current.length + 1, 1, missing.length).setValues([missing]);
+  const oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+  const oldHeaders = oldValues[0].map(String);
+  const alreadyCanonical = HEADERS.every((header, i) => oldHeaders[i] === header) && oldHeaders.length === HEADERS.length;
+  if (alreadyCanonical) {
+    sheet.setFrozenRows(1);
+    return;
+  }
+
+  const migrated = [HEADERS];
+  for (let r = 1; r < oldValues.length; r++) {
+    const oldRow = oldValues[r], obj = {};
+    oldHeaders.forEach((header, i) => obj[header] = oldRow[i]);
+    const oldPayload = readPayload_(obj);
+    const row = {
+      id: obj.id || "",
+      type: obj.type || "",
+      name: obj.name || "",
+      description: obj.description || "",
+      author: obj.author || "",
+      createdAt: obj.createdAt || "",
+      passwordSalt: obj.passwordSalt || "",
+      passwordHash: obj.passwordHash || "",
+      passwordUpdatedAt: obj.passwordUpdatedAt || ""
+    };
+    PAYLOAD_PARTS.forEach((key, i) => row[key] = oldPayload.slice(i * PAYLOAD_CHUNK_SIZE, (i + 1) * PAYLOAD_CHUNK_SIZE));
+    if (HEADERS.slice(0, 6).some(key => row[key] !== "") || oldPayload) migrated.push(HEADERS.map(header => row[header] === undefined ? "" : row[header]));
+  }
+  sheet.clearContents();
+  sheet.getRange(1, 1, migrated.length, HEADERS.length).setValues(migrated);
   sheet.setFrozenRows(1);
+}
+
+function readPayload_(item) {
+  const parts = PAYLOAD_PARTS.map(key => String(item[key] || ""));
+  if (parts.some(Boolean)) return parts.join("");
+  return String(item.payload || "");
 }
 
 function output_(data, callback) {
   const json = JSON.stringify(data);
   if (callback && /^[A-Za-z_$][\w.$]*$/.test(callback)) {
-    return ContentService.createTextOutput(callback + "(" + json + ");")
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    return ContentService.createTextOutput(callback + "(" + json + ");").setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
