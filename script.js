@@ -886,62 +886,54 @@ function openExplore(){ $("libraryPanel").hidden=true;$("explorePanel").hidden=f
 function setExploreTab(tab){activeExploreTab=tab;const custom=tab==="custom";$("exploreCodesView").hidden=custom;$("exploreCustomView").hidden=!custom;$("exploreCodesTab").classList.toggle("active",!custom);$("exploreCustomTab").classList.toggle("active",custom);renderExplore()}
 function jsonpList(url){return new Promise((resolve,reject)=>{const cb="cstudioExploreCallback_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),script=document.createElement("script"),timer=setTimeout(()=>{cleanup();reject(Error("Timed out contacting Explore."))},18000);function cleanup(){clearTimeout(timer);delete window[cb];script.remove()}window[cb]=data=>{cleanup();resolve(data)};script.onerror=()=>{cleanup();reject(Error("Could not reach the Apps Script endpoint. Check deployment access and URL."))};script.src=url+(url.includes("?")?"&":"?")+"action=list&callback="+cb;document.body.appendChild(script)})}
 async function refreshExplore(){const endpoint=exploreEndpoint();$("exploreConnectionStatus").textContent="Loading published items…";try{const data=await jsonpList(endpoint);if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");exploreItems=Array.isArray(data.items)?data.items:[];$("exploreConnectionStatus").textContent="Connected · "+exploreItems.length+" published item"+(exploreItems.length===1?"":"s");renderExplore()}catch(e){$("exploreConnectionStatus").textContent=e.message+" If this is a new deployment, check that access is set to anyone with the link."}}
-function renderExplore(){const q1=($("exploreCodesSearch")?.value||"").trim().toLowerCase(),q2=($("exploreCustomSearch")?.value||"").trim().toLowerCase(),codes=exploreItems.filter(x=>x.type==="code"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q1)),blocks=exploreItems.filter(x=>x.type==="custom"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q2));$("exploreCodesCount").textContent=codes.length+" published code"+(codes.length===1?"":"s");$("exploreCustomCount").textContent=blocks.length+" published custom block"+(blocks.length===1?"":"s");const card=x=>'<article class="library-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>'+esc(x.name||"Untitled")+'</strong><span>'+esc(x.description||"Community shared item")+'</span></div><span class="server-badge">'+(x.type==="custom"?"CUSTOM BLOCK":"CODE")+'</span></div><div class="library-meta"><span>By <b>'+esc(x.author||"Community member")+'</b></span><span>Published '+esc(x.createdAt?new Date(x.createdAt).toLocaleDateString():"date unknown")+'</span></div><div class="library-entry-actions"><button class="primary" data-explore-action="install" data-id="'+esc(x.id)+'">Install</button></div></article>';$("exploreCodesList").innerHTML=codes.length?codes.map(card).join(""):'<div class="library-empty">No published codes found.</div>';$("exploreCustomList").innerHTML=blocks.length?blocks.map(card).join(""):'<div class="library-empty">No published custom blocks found.</div>'}
+function renderExplore(){const q1=($("exploreCodesSearch")?.value||"").trim().toLowerCase(),q2=($("exploreCustomSearch")?.value||"").trim().toLowerCase(),codes=exploreItems.filter(x=>x.type==="code"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q1)),blocks=exploreItems.filter(x=>x.type==="custom"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q2));$("exploreCodesCount").textContent=codes.length+" published code"+(codes.length===1?"":"s");$("exploreCustomCount").textContent=blocks.length+" published custom block"+(blocks.length===1?"":"s");const card=x=>'<article class="library-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>'+esc(x.name||"Untitled")+'</strong><span>'+esc(x.description||"Community shared item")+'</span></div><span class="server-badge">'+(x.type==="custom"?"CUSTOM BLOCK":"CODE")+'</span></div><div class="library-meta"><span>By <b>'+esc(x.author||"Community member")+'</b></span><span>Published '+esc(x.createdAt?new Date(x.createdAt).toLocaleDateString():"date unknown")+'</span></div><div class="library-entry-actions"><button class="primary" data-explore-action="install" data-id="'+esc(x.id)+'">Install</button><button data-explore-action="edit" data-id="'+esc(x.id)+'">Edit</button></div></article>';$("exploreCodesList").innerHTML=codes.length?codes.map(card).join(""):'<div class="library-empty">No published codes found.</div>';$("exploreCustomList").innerHTML=blocks.length?blocks.map(card).join(""):'<div class="library-empty">No published custom blocks found.</div>'}
+function openExploreModal(title,body,confirmText="Save"){
+ return new Promise(resolve=>{
+  const modal=$("modal"),confirmButton=$("modalConfirm"),cancelButton=$("modalCancel"),closeButton=$("modalClose");
+  $("modalTitle").textContent=title;$("modalBody").innerHTML=body;confirmButton.textContent=confirmText;confirmButton.hidden=false;cancelButton.textContent="Cancel";modal.hidden=false;
+  let finished=false;const finish=value=>{if(finished)return;finished=true;modal.hidden=true;confirmButton.onclick=null;cancelButton.onclick=null;closeButton.onclick=null;resolve(value)};
+  confirmButton.onclick=()=>finish({confirmed:true});cancelButton.onclick=()=>finish(null);closeButton.onclick=()=>finish(null);
+  const first=$("exploreModalFirstInput");if(first)first.focus();
+ });
+}
 async function publishItem(type,item){
- const endpoint=exploreEndpoint();
- if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);$("exploreConnectionStatus").textContent=message;alert(message);return}
- const name=(prompt("Choose the permanent published name. Published names cannot be renamed:",item.name||"Untitled")||"").trim();
- if(!name)return;
- const author=(prompt("Publisher name shown publicly:","C-Studio user")||"C-Studio user").trim()||"C-Studio user";
- const kind=type==="code"?"code":"custom";
- const label=kind==="code"?"code":"custom block";
- const connection=$("exploreConnectionStatus");
- const button=document.activeElement;
- const oldButtonText=button&&button.tagName==="BUTTON"?button.textContent:"";
- if(button&&button.tagName==="BUTTON"){button.disabled=true;button.textContent="Publishing…"}
- $("explorePanel").hidden=false;
- connection.textContent="Step 1/4 · Preparing "+label+" for publishing…";
- status("Publishing "+label+"…");
- let previousIds=new Set(exploreItems.map(x=>String(x.id)));
+ const endpoint=exploreEndpoint();if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);$("exploreConnectionStatus").textContent=message;alert(message);return}
+ const kind=type==="code"?"code":"custom",label=kind==="code"?"code":"custom block";$("explorePanel").hidden=false;
+ const dialog=await openExploreModal("Publish "+(kind==="code"?"Code":"Custom Block"),'<p class="subtle">Choose the public name and owner password. You will need this password to rename or remove the listing.</p><div class="form-row"><label for="exploreModalFirstInput">Public name</label><input id="exploreModalFirstInput" maxlength="120" value="'+esc(item.name||"Untitled")+'" placeholder="Name shown in Explore"></div><div class="form-row"><label for="explorePublishAuthor">Publisher name</label><input id="explorePublishAuthor" maxlength="80" value="C-Studio user" placeholder="Name shown publicly"></div><div class="form-row"><label for="explorePublishPassword">Owner password (minimum 6 characters)</label><input id="explorePublishPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Choose a password"></div><p class="subtle">Keep the password safe; it cannot be recovered. Removing a listing stops new installs, but existing local copies remain.</p>',"Publish");
+ if(!dialog)return;const name=($("exploreModalFirstInput")?.value||"").trim(),author=($("explorePublishAuthor")?.value||"C-Studio user").trim()||"C-Studio user",password=$("explorePublishPassword")?.value||"";
+ if(!name){alert("Enter a public name.");return}if(password.length<6){alert("Choose a password with at least 6 characters.");return}
+ const connection=$("exploreConnectionStatus"),button=document.activeElement,oldButtonText=button&&button.tagName==="BUTTON"?button.textContent:"",previousIds=new Set(exploreItems.map(x=>String(x.id)));
+ if(button&&button.tagName==="BUTTON"){button.disabled=true;button.textContent="Publishing…"}connection.textContent="Step 1/4 · Preparing "+label+"…";status("Publishing "+label+"…");
  try{
-  connection.textContent="Step 2/4 · Sending "+label+" to Google Sheets…";
-  const response=await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,payload:item.payload})});
-  connection.textContent="Step 3/4 · Request sent. Checking whether Google Sheets saved it…";
-  let lastError=null, published=null;
-  for(let attempt=1;attempt<=4;attempt++){
-   await new Promise(resolve=>setTimeout(resolve,1500));
-   try{
-    const data=await jsonpList(endpoint);
-    if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");
-    const items=Array.isArray(data.items)?data.items:[];
-    published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&String(x.author||"").trim()===author)||null;
-    exploreItems=items;
-    renderExplore();
-    if(published)break;
-    connection.textContent="Step 3/4 · Checking Google Sheets… attempt "+attempt+" of 4.";
-   }catch(e){lastError=e;connection.textContent="Step 3/4 · Could not verify yet (attempt "+attempt+" of 4): "+(e?.message||String(e))}
-  }
-  if(published){
-   connection.textContent="Step 4/4 · Done! Published successfully · "+name+" is now visible in Explore.";
-   status("Published successfully: "+name);
-  }else{
-   const detail=lastError?" Last check error: "+lastError.message:"";
-   const message="Publish could not be confirmed. Google Sheets did not show a new "+label+" named “"+name+"” after 6 seconds."+detail+" Check the Apps Script deployment, permissions, and execution log, then refresh Explore.";
-   connection.textContent="Publish failed or unconfirmed · "+message;
-   status("Publish failed or unconfirmed: "+name);
-   alert(message);
-  }
- }catch(e){
-  const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Google Apps Script deployment.";
-  connection.textContent=message;
-  status(message);
-  alert(message);
- }finally{
-  if(button&&button.tagName==="BUTTON"){button.disabled=false;button.textContent=oldButtonText}
- }
+  connection.textContent="Step 2/4 · Sending "+label+" and securing the owner password…";
+  await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,password,payload:item.payload})});
+  connection.textContent="Step 3/4 · Waiting for Google Sheets to confirm the listing…";let lastError=null,published=null;
+  for(let attempt=1;attempt<=6;attempt++){await new Promise(resolve=>setTimeout(resolve,1500));try{const data=await jsonpList(endpoint);if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");const items=Array.isArray(data.items)?data.items:[];published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&String(x.author||"").trim()===author)||null;exploreItems=items;renderExplore();if(published)break;connection.textContent="Step 3/4 · Checking the sheet… attempt "+attempt+" of 6."}catch(e){lastError=e;connection.textContent="Step 3/4 · Verification attempt "+attempt+" failed: "+(e?.message||String(e))}}
+  if(published){connection.textContent="Step 4/4 · Complete! “"+name+"” is published and visible in Explore.";status("Published successfully: "+name)}else{const message="Publish failed or could not be confirmed. "+(lastError?lastError.message+" ":"")+"Check the Apps Script deployment, permissions, and execution log, then refresh Explore.";connection.textContent=message;status(message);alert(message)}
+ }catch(e){const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and Apps Script deployment.";connection.textContent=message;status(message);alert(message)}
+ finally{if(button&&button.tagName==="BUTTON"){button.disabled=false;button.textContent=oldButtonText}}
+}
+async function manageExploreItem(id){
+ const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;
+ const pd=await openExploreModal("Edit published item",'<p class="subtle">Enter the owner password for “'+esc(item.name)+'”.</p><div class="form-row"><label for="exploreModalFirstInput">Owner password</label><input id="exploreModalFirstInput" type="password" autocomplete="current-password" placeholder="Owner password"></div><p class="subtle">Removing the listing prevents new installs. Existing local copies will not be deleted.</p>',"Continue");
+ if(!pd)return;const password=$("exploreModalFirstInput")?.value||"";if(!password){alert("Enter the owner password.");return}
+ const ad=await openExploreModal("Manage published item",'<p class="subtle">Rename the public listing or remove it from Explore.</p><div class="form-row"><label for="exploreRenamePublic">Public name</label><input id="exploreRenamePublic" maxlength="120" value="'+esc(item.name)+'"></div><div class="form-row"><button id="exploreRenameAction" type="button">Rename listing</button> <button id="exploreRemoveAction" class="danger" type="button">Remove from Explore</button></div><p class="subtle">Anyone who already installed this item keeps their copy.</p>',"Close");
+ if(!ad)return;
+ const doManage=async(action,newName)=>{
+  if(action==="delete"&&!confirm("Remove this listing from Explore? Existing installed copies will remain."))return;
+  if(action==="rename"&&(!newName||newName.trim()===item.name)){alert("Enter a different public name.");return}
+  const connection=$("exploreConnectionStatus");connection.textContent=action==="delete"?"Removing listing…":"Renaming listing…";
+  try{
+   await fetch(exploreEndpoint(),{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"manage",manageAction:action,id:item.id,password,name:newName?.trim()})});
+   let confirmed=false,lastError=null;
+   for(let attempt=1;attempt<=6;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));try{const data=await jsonpList(exploreEndpoint());if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");exploreItems=Array.isArray(data.items)?data.items:[];const current=exploreItems.find(x=>String(x.id)===String(item.id));if((action==="delete"&&!current)||(action==="rename"&&current&&current.name===newName.trim())){confirmed=true;break}if(!current&&action==="rename")throw Error("The listing disappeared while checking the rename.")}catch(e){lastError=e}}
+   renderExplore();if(confirmed){connection.textContent=action==="delete"?"Removed from Explore. Existing copies remain.":"Public listing renamed to “"+newName.trim()+"”.";status(connection.textContent);$("modal").hidden=true}else{const message="Could not confirm the change. The password may be incorrect, or the Apps Script backend needs updating."+(lastError?" Error: "+lastError.message:"");connection.textContent=message;alert(message)}
+  }catch(e){const message="Manage action failed: "+(e?.message||String(e));connection.textContent=message;alert(message)}
+ };
+ $("exploreRenameAction").onclick=()=>doManage("rename",$("exploreRenamePublic").value);$("exploreRemoveAction").onclick=()=>doManage("delete");
 }
 function installExploreItem(id){const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;let payload=item.payload;try{if(typeof payload==="string")payload=JSON.parse(payload)}catch{alert("This published item has invalid data.");return}if(item.type==="code"){const project=payload?.project||payload;if(!project||!Array.isArray(project.nodes)){alert("This published code has invalid project data.");return}const all=libraryEntries();if(all.some(e=>e.publishedSourceId===item.id)){status("Already installed in Library > Codes.");return}const entry=makeEntry(project,item.name||project.projectName||"Installed code");entry.publishedSourceId=item.id;entry.folder="Explore installs";all.unshift(entry);writeLibrary(all);renderLibrary();status("Installed locally. Open Library > Codes to rename or load it.");return}const incoming=Array.isArray(payload?.customBlocks)?payload.customBlocks:(payload?.customBlock?[payload.customBlock]:[payload]);if(!incoming.length||!incoming[0]?.nodes){alert("This published custom block has invalid data.");return}if(customBlocks.some(b=>b.publishedSourceId===item.id)){status("Already installed in Library > Custom Blocks.");return}const idMap=new Map(incoming.map(b=>[String(b.id),"installed_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)+"_"+String(b.id).replace(/[^a-z0-9]/gi,"").slice(-6)]));const cloned=incoming.map((b,i)=>{const c=JSON.parse(JSON.stringify(b));c.id=idMap.get(String(b.id));c.publishedSourceId=i===0?item.id:undefined;if(i===0)c.name=item.name||b.name;c.nodes=(c.nodes||[]).map(n=>{if(String(n.type).startsWith("customblock_")){const old=n.type.slice("customblock_".length);if(idMap.has(old))n.type="customblock_"+idMap.get(old)}return n});return c});customBlocks.push(...cloned);saveCustomBlocks();syncCustomDefs();renderCustomBlockLibrary();status("Installed locally. Open Library > Custom Blocks to edit or rename your copy.")}
-$("openExplore").onclick=openExplore;$("closeExplore").onclick=()=>$("explorePanel").hidden=true;$("saveExploreEndpoint").onclick=saveExploreEndpoint;$("exploreCodesTab").onclick=()=>setExploreTab("codes");$("exploreCustomTab").onclick=()=>setExploreTab("custom");$("refreshExploreCodes").onclick=refreshExplore;$("refreshExploreCustom").onclick=refreshExplore;$("exploreCodesSearch").addEventListener("input",renderExplore);$("exploreCustomSearch").addEventListener("input",renderExplore);$("exploreCodesList").addEventListener("click",e=>{const b=e.target.closest("[data-explore-action=install]");if(b)installExploreItem(b.dataset.id)});$("exploreCustomList").addEventListener("click",e=>{const b=e.target.closest("[data-explore-action=install]");if(b)installExploreItem(b.dataset.id)});$("exploreEndpoint").value=exploreEndpoint();
+$("openExplore").onclick=openExplore;$("closeExplore").onclick=()=>$("explorePanel").hidden=true;$("saveExploreEndpoint").onclick=saveExploreEndpoint;$("exploreCodesTab").onclick=()=>setExploreTab("codes");$("exploreCustomTab").onclick=()=>setExploreTab("custom");$("refreshExploreCodes").onclick=refreshExplore;$("refreshExploreCustom").onclick=refreshExplore;$("exploreCodesSearch").addEventListener("input",renderExplore);$("exploreCustomSearch").addEventListener("input",renderExplore);["exploreCodesList","exploreCustomList"].forEach(listId=>$(listId).addEventListener("click",e=>{const b=e.target.closest("[data-explore-action]");if(!b)return;if(b.dataset.exploreAction==="install")installExploreItem(b.dataset.id);if(b.dataset.exploreAction==="edit")manageExploreItem(b.dataset.id)}));$("exploreEndpoint").value=exploreEndpoint();
 
 function openLibrary(){renderLibrary();renderCustomBlockLibrary();$("libraryPanel").hidden=false;setLibraryTab("scripts")}
 function setLibraryTab(tab){const custom=tab==="custom";$("libraryLocalView").hidden=custom;$("libraryCustomView").hidden=!custom;$("libraryScriptsTab").classList.toggle("active",!custom);$("libraryCustomTab").classList.toggle("active",custom);$("libraryHeadingTitle").textContent=custom?"CUSTOM BLOCK LIBRARY":"SCRIPT LIBRARY";$("libraryHeadingDescription").textContent=custom?"Rename or remove reusable custom node definitions. Changes apply to every instance.":"Scripts saved on this device only."}
