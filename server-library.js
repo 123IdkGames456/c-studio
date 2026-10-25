@@ -1,9 +1,17 @@
 (() => {
-  const SERVER_LIBRARY_URL = "https://script.google.com/macros/s/AKfycbzK8zLLrKGSCTarl7afq9U5ClBGoznhYySSJWHdaCMjq-TZP4fDJigrJ3poXKzaTLAx/exec";
+  const SUPABASE_URL = "https://wktrywxzkmqwuowlurfq.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Lt0tnVTm1UzuRsvXe5C5fA_cwfPeljB";
+  const TABLE_URL = SUPABASE_URL + "/rest/v1/cstudio_library";
   const $ = id => document.getElementById(id);
   let serverEntries = [];
   let requestNumber = 0;
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const headers = extra => ({
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: "Bearer " + SUPABASE_PUBLISHABLE_KEY,
+    ...extra
+  });
+
   function setTab(tab) {
     const explore = tab === "explore";
     $("libraryLocalView").hidden = explore;
@@ -12,60 +20,65 @@
     $("libraryExploreTab").classList.toggle("active", explore);
     if (explore && !serverEntries.length) loadServerEntries();
   }
+
   function parsePayload(entry) {
     let payload = entry.payload ?? entry.code ?? entry.content ?? "";
     if (typeof payload !== "string") payload = JSON.stringify(payload, null, 2);
     return payload;
   }
+
+  function normalizeEntry(row) {
+    return {
+      ...row,
+      createdAt: row.created_at ? new Date(row.created_at).toLocaleString() : "",
+      publisherName: row.username || "Unknown",
+      publishedBy: row.username || "Unknown"
+    };
+  }
+
   function renderExplore() {
     const q = ($("exploreSearch").value || "").trim().toLowerCase();
-    const visible = serverEntries.filter(e => (String(e.name || "") + " " + String(e.type || "") + " " + parsePayload(e)).toLowerCase().includes(q));
+    const visible = serverEntries.filter(e => (String(e.name || "") + " " + String(e.type || "") + " " + String(e.username || "") + " " + parsePayload(e)).toLowerCase().includes(q));
     $("exploreList").innerHTML = visible.length ? visible.map(e => {
       const payload = parsePayload(e);
       const isCode = String(e.type || "code").toLowerCase() === "code";
-      return '<article class="library-entry server-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>' + esc(e.name || "Untitled server script") + '</strong><span>' + (isCode ? "C# CODE" : "NODE PROJECT") + (e.createdAt ? " · " + esc(e.createdAt) : "") + '</span><span class="server-publisher">Published by ' + esc(e.publisherName || e.publishedBy || "Unknown") + '</span></div><span class="server-badge">SERVER</span></div><details class="server-preview"><summary>Preview ' + (isCode ? "code" : "project JSON") + '</summary><pre>' + esc(payload) + '</pre></details><div class="library-entry-actions"><button data-server-action="copy" data-index="' + serverEntries.indexOf(e) + '">Copy</button><button data-server-action="download" data-index="' + serverEntries.indexOf(e) + '">Download</button></div></article>';
-    }).join("") : '<div class="library-empty">' + (serverEntries.length ? "No server scripts match your search." : "No server scripts returned yet.") + "</div>";
-    if (serverEntries.length) $("exploreStatus").textContent = serverEntries.length + " server script" + (serverEntries.length === 1 ? "" : "s") + " loaded. Showing " + visible.length + ".";
+      return '<article class="library-entry server-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>' + esc(e.name || "Untitled server script") + '</strong><span>' + (isCode ? "C# CODE" : "NODE PROJECT") + (e.createdAt ? " · " + esc(e.createdAt) : "") + '</span><span class="server-publisher">Published by ' + esc(e.publisherName || e.publishedBy || "Unknown") + '</span></div><span class="server-badge">SUPABASE</span></div><details class="server-preview"><summary>Preview ' + (isCode ? "code" : "project JSON") + '</summary><pre>' + esc(payload) + '</pre></details><div class="library-entry-actions"><button data-server-action="copy" data-index="' + serverEntries.indexOf(e) + '">Copy</button><button data-server-action="download" data-index="' + serverEntries.indexOf(e) + '">Download</button></div></article>';
+    }).join("") : '<div class="library-empty">' + (serverEntries.length ? "No server scripts match your search." : "No community scripts have been published yet.") + "</div>";
+    $("exploreStatus").textContent = serverEntries.length + " community script" + (serverEntries.length === 1 ? "" : "s") + " loaded. Showing " + visible.length + ".";
   }
-  function loadServerEntries() {
+
+  async function loadServerEntries() {
     const requestId = ++requestNumber;
-    $("exploreStatus").textContent = "Loading scripts from the server…";
+    $("exploreStatus").textContent = "Loading scripts from Supabase…";
     $("refreshExplore").disabled = true;
-    const callback = "__cstudioServerLibraryCallback";
-    const old = document.getElementById("cstudio-server-library-request");
-    if (old) old.remove();
-    const timer = setTimeout(() => {
+    try {
+      const response = await fetch(TABLE_URL + "?select=id,name,type,payload,created_at,username&order=created_at.desc&limit=200", {
+        method: "GET",
+        headers: headers({ Accept: "application/json" })
+      });
+      const body = await response.json().catch(() => null);
       if (requestId !== requestNumber) return;
-      cleanup();
-      $("exploreStatus").textContent = "Could not load server scripts. The deployed Apps Script must support ?action=list&callback=... and return the server entries as JSONP. Update and redeploy Code.gs, then press Refresh.";
-      $("refreshExplore").disabled = false;
-    }, 10000);
-    function cleanup() { clearTimeout(timer); const script = document.getElementById("cstudio-server-library-request"); if (script) script.remove(); delete window[callback]; }
-    window[callback] = data => {
-      if (requestId !== requestNumber) return;
-      cleanup();
-      $("refreshExplore").disabled = false;
-      if (!data || data.ok === false) { $("exploreStatus").textContent = data?.error || "The server did not return a valid script list."; return; }
-      const items = Array.isArray(data) ? data : (data.scripts || data.entries || data.data || []);
-      if (!Array.isArray(items)) { $("exploreStatus").textContent = "Unexpected server response. Expected a list of saved scripts."; return; }
-      serverEntries = items.filter(e => e && ["code", "node", "json"].includes(String(e.type || "").toLowerCase()));
+      if (!response.ok) {
+        const message = body?.message || body?.hint || body?.details || "HTTP " + response.status;
+        if (response.status === 401 || response.status === 403) throw new Error("Supabase rejected the request. Check the project URL, publishable key, and public SELECT policy. " + message);
+        throw new Error("Supabase could not load the library: " + message);
+      }
+      if (!Array.isArray(body)) throw new Error("Unexpected response from Supabase. Expected a list of scripts.");
+      serverEntries = body.map(normalizeEntry).filter(e => e && ["code", "node", "json"].includes(String(e.type || "").toLowerCase()));
       renderExplore();
-    };
-    const script = document.createElement("script");
-    script.id = "cstudio-server-library-request";
-    script.src = SERVER_LIBRARY_URL + (SERVER_LIBRARY_URL.includes("?") ? "&" : "?") + "action=list&callback=" + callback + "&t=" + Date.now();
-    script.onerror = () => {
+    } catch (error) {
       if (requestId !== requestNumber) return;
-      cleanup();
-      $("refreshExplore").disabled = false;
-      $("exploreStatus").textContent = "Could not reach the server API. Confirm that Apps Script is deployed with a public list endpoint.";
-    };
-    document.head.appendChild(script);
+      $("exploreStatus").textContent = error?.message || "Could not connect to Supabase. Check your connection and database policies.";
+      $("exploreList").innerHTML = '<div class="library-empty">Library unavailable. Press Refresh to try again.</div>';
+    } finally {
+      if (requestId === requestNumber) $("refreshExplore").disabled = false;
+    }
   }
 
   let pendingPublishEntry = null;
   let publishRequestId = null;
   let publishTimeout = null;
+
   function showPublishModal(entry) {
     pendingPublishEntry = entry;
     $("publishLoading").hidden = true;
@@ -77,28 +90,33 @@
     $("publishUsername").value = "";
     $("publishSubmit").hidden = false;
   }
+
   function closePublishModal() {
     if (publishRequestId) return;
     $("publishModal").hidden = true;
     pendingPublishEntry = null;
   }
+
   function publishFailure(message) {
     clearTimeout(publishTimeout);
     publishRequestId = null;
     $("publishLoading").hidden = true;
     $("publishCancel").disabled = false;
     $("publishClose").disabled = false;
+    $("publishSubmit").disabled = false;
     $("publishStatus").className = "publish-status error";
     $("publishStatus").textContent = message;
   }
+
   function publishSuccess() {
     clearTimeout(publishTimeout);
     publishRequestId = null;
     $("publishModal").hidden = true;
     pendingPublishEntry = null;
-    $("exploreStatus").textContent = "Script published successfully. Refreshing server library…";
+    $("exploreStatus").textContent = "Script published successfully. Refreshing community library…";
     loadServerEntries();
   }
+
   function getDeviceId() {
     let id = "";
     try { id = localStorage.getItem("cstudioDeviceId") || ""; } catch {}
@@ -109,7 +127,7 @@
     return id;
   }
 
-  function submitPublish() {
+  async function submitPublish() {
     if (!pendingPublishEntry || publishRequestId) return;
     const username = String($("publishUsername").value || "").trim().replace(/\s+/g, " ");
     if (!username || username.length < 2 || username.length > 24) {
@@ -119,56 +137,61 @@
       return;
     }
     const local = pendingPublishEntry;
-    const serverEntry = {
-      name: String(local.name || local.project.projectName || "Untitled script"),
+    const payload = local.project;
+    if (!payload || typeof payload !== "object") {
+      publishFailure("This saved item does not contain a valid Blueprint project.");
+      return;
+    }
+    const record = {
+      name: String(local.name || local.project.projectName || "Untitled script").trim().slice(0, 120),
       type: "node",
-      payload: JSON.stringify(local.project),
-      createdAt: new Date().toISOString(),
+      payload,
       username,
-      deviceId: getDeviceId()
+      device_id: getDeviceId()
     };
-    publishRequestId = "cstudio-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-    const requestId = publishRequestId;
+    if (new Blob([JSON.stringify(record.payload)]).size > 200000) {
+      $("publishStatus").className = "publish-status error";
+      $("publishStatus").textContent = "This project is too large to publish (maximum 200 KB).";
+      return;
+    }
+    const requestId = "cstudio-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    publishRequestId = requestId;
     $("publishLoading").hidden = false;
     $("publishStatus").className = "publish-status";
-    $("publishStatus").textContent = "";
+    $("publishStatus").textContent = "Saving to Supabase…";
     $("publishCancel").disabled = true;
     $("publishClose").disabled = true;
-    let frame = document.getElementById("cstudio-publish-frame");
-    if (!frame) {
-      frame = document.createElement("iframe");
-      frame.id = "cstudio-publish-frame";
-      frame.name = "cstudio-publish-frame";
-      frame.hidden = true;
-      document.body.appendChild(frame);
-    }
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = SERVER_LIBRARY_URL;
-    form.target = frame.name;
-    form.hidden = true;
-    const fields = { action: "save", entry: JSON.stringify(serverEntry), username, deviceId: serverEntry.deviceId, requestId };
-    Object.entries(fields).forEach(([name, value]) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    });
-    window.addEventListener("message", function onPublishMessage(event) {
-      const data = event.data;
-      if (!data || data.type !== "cstudio-publish-result" || data.requestId !== requestId) return;
-      window.removeEventListener("message", onPublishMessage);
-      if (data.ok === true) publishSuccess();
-      else publishFailure(String(data.message || "The server could not save the script."));
-    });
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
+    $("publishSubmit").disabled = true;
+
     publishTimeout = setTimeout(() => {
+      if (publishRequestId === requestId) publishFailure("The request timed out. Check your Supabase connection and INSERT policy, then try again.");
+    }, 20000);
+
+    try {
+      const response = await fetch(TABLE_URL, {
+        method: "POST",
+        headers: headers({
+          "Content-Type": "application/json",
+          Prefer: "return=minimal"
+        }),
+        body: JSON.stringify(record)
+      });
+      const body = await response.json().catch(() => null);
       if (publishRequestId !== requestId) return;
-      publishFailure("No result came back from the server. Confirm Code.gs is updated and redeployed.");
-    }, 18000);
+      if (!response.ok) {
+        let message = body?.message || body?.hint || body?.details || "HTTP " + response.status;
+        if (response.status === 401 || response.status === 403) {
+          message = "Supabase blocked publishing. You need an INSERT policy for anon on cstudio_library. " + message;
+        } else if (response.status === 400 || response.status === 404) {
+          message = "Supabase rejected the record. Check that cstudio_library has the expected columns and that payload is jsonb. " + message;
+        }
+        publishFailure(message);
+        return;
+      }
+      publishSuccess();
+    } catch (error) {
+      if (publishRequestId === requestId) publishFailure(error?.message || "Could not connect to Supabase. Check your internet connection.");
+    }
   }
 
   window.addEventListener("cstudio:publish-script", event => {
@@ -176,6 +199,7 @@
     if (!local?.project) return;
     showPublishModal(local);
   });
+
   $("publishSubmit")?.addEventListener("click", () => submitPublish());
   $("publishCancel")?.addEventListener("click", closePublishModal);
   $("publishClose")?.addEventListener("click", closePublishModal);
@@ -198,14 +222,22 @@
     const payload = parsePayload(entry);
     const filename = String(entry.name || "server-script").replace(/[^a-z0-9_-]+/gi, "_") || "server-script";
     if (button.dataset.serverAction === "copy") {
-      try { await navigator.clipboard.writeText(payload); button.textContent = "Copied!"; setTimeout(() => { if (button.isConnected) button.textContent = "Copy"; }, 1200); }
-      catch { alert("Clipboard access failed. Open Preview and copy the text manually."); }
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = "Copied!";
+        setTimeout(() => { if (button.isConnected) button.textContent = "Copy"; }, 1200);
+      } catch {
+        alert("Clipboard access failed. Open Preview and copy the text manually.");
+      }
       return;
     }
     const isCode = String(entry.type || "code").toLowerCase() === "code";
-    const blob = new Blob([payload], {type: isCode ? "text/plain;charset=utf-8" : "application/json;charset=utf-8"});
+    const blob = new Blob([payload], { type: isCode ? "text/plain;charset=utf-8" : "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = filename + (isCode ? ".cs" : ".json"); a.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename + (isCode ? ".cs" : ".json");
+    a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
 })();
