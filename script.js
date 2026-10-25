@@ -24,6 +24,7 @@ function nodeInputs(n){
  if(["listelement","listclosest","listfarthest"].includes(n?.type)){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:p.id==="index"?{...p,type:"int"}:{...p,type});}
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
+ if(n?.type==="raycast"){const mode=n.values?.tagMode||"none";return (d?.dataIn||[]).filter(p=>!["tag","tags"].includes(p.id)||(p.id==="tag"&&mode==="tag")||(p.id==="tags"&&mode==="tags"));}
  if(n?.type==="if")return (n.values?.branchMode||"Exec")==="Exec"?[{id:"condition",label:"Condition",type:"bool"}]:[{id:"condition",label:"Condition",type:"bool"},{id:"trueValue",label:"True",type:n.values.branchMode},{id:"falseValue",label:"False",type:n.values.branchMode}];
  if(n?.type==="transform"){
   const operation=n.values?.operation||"setPosition";
@@ -350,7 +351,7 @@ function renderNodes(){
   if(d.flowIn&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"))d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
   html+='<div class="node-body">';
   html+='<div class="node-description">'+esc(d.desc)+'</div>';
-  (d.fields||[]).forEach(f=>{if(n.type==="raycast"&&((f.id==="tag"&&n.values.tagMode!=="tag")||(f.id==="tags"&&n.values.tagMode!=="tags")))return;html+=fieldHtml(n,f)});
+  (d.fields||[]).forEach(f=>{html+=fieldHtml(n,f)});
   if(n.type==="setcomponent"){
    const chosen=n.values.componentVariable||"";
    const componentVars=variables.filter(v=>BlueprintTypes.unity.includes(v.type));
