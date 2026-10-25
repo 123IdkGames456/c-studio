@@ -289,6 +289,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="vectordot"){expression="Vector3.Dot("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="float";
    }else if(n.type==="vectorcross"){expression="Vector3.Cross("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="Vector3";
    }else if(n.type==="vectornormalize"){const v=valueForInput(n,"value",path,"Vector3");expression="("+v+".sqrMagnitude > 0f ? "+v+".normalized : Vector3.zero)";sourceType="Vector3";
+   }else if(n.type==="forloop"){expression="__blueprintLoopIndex_"+n.id;sourceType="int";
    }else if(n.type==="foreach"){expression=safeIdentifier(n.values?.itemName||"item","item",new Set());sourceType=n.values?.elementType||"GameObject";
    }else if(["triggerenter","triggerstay","triggerexit"].includes(n.type)){expression="other";sourceType="Collider";
    }else if(["collisionenter","collisionstay","collisionexit"].includes(n.type)){expression="collision";sourceType="Collision";
