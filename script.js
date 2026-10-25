@@ -1,8 +1,22 @@
 (() => {
 const $ = id => document.getElementById(id);
 const defs = BlueprintBlocks.defs;
+const CUSTOM_BLOCKS_KEY="ikirumi-unity-custom-blocks-v1";
+let customBlocks=(()=>{try{const x=JSON.parse(localStorage.getItem(CUSTOM_BLOCKS_KEY)||"[]");return Array.isArray(x)?x:[]}catch{return []}})();
+let customEditingId=null,customParentState=null;
 let nodes = [], links = [], variables = [], nextNode = 1, nextVariable = 1;
 let selectedNode = null, pendingPin = null, activeCategory = "All", codeVisible = true, activeView = "graph";
+function saveCustomBlocks(){try{localStorage.setItem(CUSTOM_BLOCKS_KEY,JSON.stringify(customBlocks))}catch(e){status("Custom block save failed: browser storage is full")}}
+function customPortList(boundaryType,def=customBlocks.find(x=>x.id===customEditingId)){return def?.nodes?.find(n=>n.type===boundaryType)?.values?.ports||[]}
+function syncCustomDefs(){
+ for(let i=defs.length-1;i>=0;i--)if(String(defs[i].id).startsWith("customblock_"))defs.splice(i,1);
+ customBlocks.forEach(block=>{
+  const inputs=block.nodes?.find(n=>n.type==="custominput")?.values?.ports||[];
+  const outputs=block.nodes?.find(n=>n.type==="customoutput")?.values?.ports||[];
+  defs.push({id:"customblock_"+block.id,name:block.name,category:"Custom Nodes",color:block.color||"#d09aff",kind:"flow",desc:block.description||"Reusable custom block. Double-click to edit; all instances share this definition.",aliases:[block.name.toLowerCase(),"custom "+block.name.toLowerCase()],flowIn:["Exec"],flowOut:["Then"],dataIn:inputs.map(p=>({id:p.id,label:p.name,type:p.type,optional:true,default:p.default})),dataOut:outputs.map(p=>({id:p.id,label:p.name,type:p.type}))});
+ });
+}
+syncCustomDefs();
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const getDef = id => defs.find(d => d.id === id);
 const getNode = id => nodes.find(n => n.id === id);
@@ -21,6 +35,8 @@ function connectedComponentType(n){
  return null;
 }
 function nodeInputs(n){
+ if(n?.type==="custominput")return [];
+ if(n?.type==="customoutput")return (n.values?.ports||[]).map(p=>({id:p.id,label:p.name,type:p.type}));
  if(n?.type==="foreach"){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>({...p,type:p.id==="list"?"List<"+type+">":p.type}));}
  if(["listelement","listclosest","listfarthest"].includes(n?.type)){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:p.id==="index"?{...p,type:"int"}:{...p,type});}
  const d=getDef(n?.type);
@@ -47,6 +63,7 @@ function nodeInputs(n){
 }
 function nodeOutputs(n){
  const d=getDef(n?.type);
+ if(n?.type==="custominput"||n?.type==="customoutput")return (n.values?.ports||[]).map(p=>({id:p.id,label:p.name,type:p.type}));
  if(n?.type==="foreach"&&(n.values?.mode||"Loop")!=="LoopWithOutput")return [];
  if(n?.type!=="getcomponentvalue")return d?.dataOut||[];
  const ct=connectedComponentType(n);
@@ -89,7 +106,9 @@ function componentPropertyType(component,property){
  };
  return map[component]?.[property]||"object";
 }
-function actualOutputType(n){
+function actualOutputType(n,outputPin="value"){
+ if(n?.type==="custominput"||n?.type==="customoutput")return (n.values?.ports||[]).find(p=>p.id===outputPin)?.type||"dynamic";
+ if(String(n?.type||"").startsWith("customblock_"))return getDef(n.type)?.dataOut?.find(p=>p.id===outputPin)?.type||"dynamic";
   if(n?.type==="foreach")return n.values?.elementType||"GameObject";
  if(["listelement","listclosest","listfarthest"].includes(n?.type))return n.values?.elementType||"GameObject";
  if(n?.type==="getfirsttag")return "GameObject";
@@ -148,7 +167,7 @@ function displayInputType(n,p){
  const connection=links.find(l=>l.kind==="data"&&l.to===n.id&&l.toPin===p.id);
  if(connection){
   const source=getNode(connection.from);
-  if(source)return actualOutputType(source);
+  if(source)return actualOutputType(source,connection.fromPin);
  }
  const expected=expectedInputType(n,p);
  return expected==="dynamic"?"any":expected;
@@ -196,7 +215,7 @@ function removeIncompatibleLinksForInput(nodeId){
  links=links.filter(l=>{
   if(l.kind!=="data"||l.to!==nodeId)return true;
   const source=getNode(l.from),input=nodeInputs(n).find(p=>p.id===l.toPin);
-  return !!input&&inputActive(n,input)&&typesCompatible(actualOutputType(source),expectedInputType(n,input));
+  return !!input&&inputActive(n,input)&&typesCompatible(actualOutputType(source,l.fromPin),expectedInputType(n,input));
  });
 }
 const categoryOrder = ["Events","Flow","Variables","Values","Math","Logic","Unity","Input","Physics","Time","Lists","Functions","Debug","Device","Utility"];
@@ -511,7 +530,7 @@ function findSnapTarget(x,y,requireNear=true){
     source=getNode(nodeId);target=getNode(wireDrag.node);
     input=nodeInputs(target).find(p=>p.id===wireDrag.pin);
    }
-   if(!source||!target||!input||!typesCompatible(actualOutputType(source),expectedInputType(target,input)))return;
+   if(!source||!target||!input||!typesCompatible(actualOutputType(source,l.fromPin),expectedInputType(target,input)))return;
   }
   const r=pin.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,d=Math.hypot(cx-x,cy-y);
   if(d<bestDist){bestDist=d;best={pin,nodeId,distance:d}}
@@ -549,7 +568,7 @@ function pinClick(n,kind,isOut,pin){
  if(kind!==a.kind||isOut){status(isOut?"Connections must go from an output to an input":"Pin types do not match");renderNodes();return}
  const from=getNode(a.node),to=n,fd=getDef(from.type),td=getDef(to.type);
  if(kind==="data"){
-  const outType=actualOutputType(from), input=nodeInputs(to).find(p=>p.id===pin);
+  const outType=actualOutputType(from,a.pin), input=nodeInputs(to).find(p=>p.id===pin);
   if(!input||!typesCompatible(outType,expectedInputType(to,input))){status("Incompatible data types");renderNodes();return}
  }
  links=links.filter(l=>!(l.to===n.id&&l.toPin===pin&&l.kind===kind));
@@ -617,7 +636,7 @@ function setView(view){
  if(isCode)renderCode();
 }
 function renderCode(){
- const result=BlueprintCompiler.compile(nodes,links,variables,$("projectName").value||"BlueprintScript");
+ const result=BlueprintCompiler.compile(nodes,links,variables,$("projectName").value||"BlueprintScript",customBlocks);
  $("codeOutput").textContent=result.code;
  $("diagnostics").innerHTML=result.diagnostics.length?result.diagnostics.map(x=>'<div class="warning">⚠ '+esc(x)+'</div>').join(""):'<span class="status-good">✓ No basic graph issues detected.</span>';
  $("compileStatus").textContent=result.diagnostics.length?" · "+result.diagnostics.length+" issue(s)":" · Live preview";
@@ -627,7 +646,7 @@ function pruneIncompatibleLinks(){
   if(l.kind!=="data")return true;
   const source=getNode(l.from),target=getNode(l.to),td=getDef(target?.type);
   const input=nodeInputs(target).find(p=>p.id===l.toPin);
-  return !!source&&!!input&&inputActive(target,input)&&typesCompatible(actualOutputType(source),expectedInputType(target,input));
+  return !!source&&!!input&&inputActive(target,input)&&typesCompatible(actualOutputType(source,wireDrag.direction==="output"?wireDrag.pin:wireDrag.pin),expectedInputType(target,input));
  }
  );
 }
