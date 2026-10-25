@@ -93,6 +93,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
    if(["getparent","getchild","findchild"].includes(n.type))return "GameObject";
    if(["getcomponentchildren","getcomponentparent"].includes(n.type))return n.values?.componentType||"Rigidbody";
    if(["getvelocity","vectorcross","vectornormalize"].includes(n.type))return "Vector3";
+   if(n.type==="randomsphere")return "Vector3";
+   if(n.type==="isgrounded")return "bool";
    if(n.type==="listcount")return "int";
    if(["listcontains","isnull","getactivestate","raycast","spherecast","overlapsphere","stringcontains"].includes(n.type))return "bool";
    if(["stringconcat","stringreplace"].includes(n.type))return "string";
@@ -265,6 +267,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="getchild"){const t=valueForInput(n,"target",path,"GameObject"),i=valueForInput(n,"index",path,"int");expression="("+t+" != null && "+i+" >= 0 && "+i+" < "+t+".transform.childCount ? "+t+".transform.GetChild("+i+").gameObject : null)";sourceType="GameObject";
    }else if(n.type==="findchild"){const t=valueForInput(n,"target",path,"GameObject"),nm=escString(n.values?.name||"Child");expression="("+t+" != null && "+t+".transform.Find("+nm+") != null ? "+t+".transform.Find("+nm+").gameObject : null)";sourceType="GameObject";
    }else if(n.type==="getcomponentchildren"||n.type==="getcomponentparent"){const ct=n.values?.componentType||"Rigidbody",t=valueForInput(n,"target",path,"GameObject");expression="("+t+" != null ? "+t+".GetComponent"+(n.type==="getcomponentchildren"?"InChildren":"InParent")+"<"+ct+">() : null)";sourceType=ct;
+   }else if(n.type==="randomsphere"){expression="UnityEngine.Random.insideUnitSphere";sourceType="Vector3";
+   }else if(n.type==="isgrounded"){const c=valueForInput(n,"controller",path,"CharacterController");expression="("+c+" != null && "+c+".isGrounded)";sourceType="bool";
    }else if(n.type==="getvelocity"){const b=valueForInput(n,"body",path,"Rigidbody");expression="("+b+" != null ? "+b+".velocity : Vector3.zero)";sourceType="Vector3";
    }else if(n.type==="raycast"||n.type==="spherecast"){const o=valueForInput(n,"origin",path,"Vector3"),d=valueForInput(n,"direction",path,"Vector3"),max=cleanNumber(n.values?.maxDistance??"100","float"),radius=cleanNumber(n.values?.radius??"0.5","float"),call=n.type==="raycast"?"Physics.Raycast("+o+", "+d+", out __h, "+max+")":"Physics.SphereCast("+o+", "+radius+", "+d+", out __h, "+max+")";if(outputPin==="hit"||outputPin==="hitObject"||outputPin==="point"){const result="((Func<RaycastHit>)(() => { RaycastHit __h; "+call+"; return __h; }))()";sourceType=outputPin==="hit"?"RaycastHit":outputPin==="hitObject"?"GameObject":"Vector3";expression=outputPin==="hit"?result:outputPin==="hitObject"?"("+result+".collider != null ? "+result+".collider.gameObject : null)":result+".point";}else{expression=n.type==="raycast"?"Physics.Raycast("+o+", "+d+", "+max+")":"Physics.SphereCast("+o+", "+radius+", "+d+", "+max+")";sourceType="bool";}
    }else if(n.type==="overlapsphere"){const c=valueForInput(n,"center",path,"Vector3");expression="(Physics.OverlapSphere("+c+", "+cleanNumber(n.values?.radius??"1","float")+").Length > 0)";sourceType="bool";
@@ -477,6 +481,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }
    else if(n.type==="addforce"||n.type==="addtorque"){
     const b=valueForInput(n,"body",new Set(),"Rigidbody"),v=valueForInput(n,n.type==="addforce"?"force":"torque",new Set(),"Vector3"),m=n.type==="addforce"?"AddForce":"AddTorque",fm=n.values?.forceMode||"Force";out.push(p+"if ("+b+" != null) "+b+"."+m+"("+v+", ForceMode."+fm+");");
+   }else if(n.type==="moveposition"){const b=valueForInput(n,"body",new Set(),"Rigidbody"),v=valueForInput(n,"position",new Set(),"Vector3");out.push(p+"if ("+b+" != null) "+b+".MovePosition("+v+");");
+   }else if(n.type==="moverotation"){const b=valueForInput(n,"body",new Set(),"Rigidbody"),v=valueForInput(n,"rotation",new Set(),"Quaternion");out.push(p+"if ("+b+" != null) "+b+".MoveRotation("+v+");");
    }else if(n.type==="setvelocity"){const b=valueForInput(n,"body",new Set(),"Rigidbody"),v=valueForInput(n,"velocity",new Set(),"Vector3");out.push(p+"if ("+b+" != null) "+b+".velocity = "+v+";");
    }else if(n.type==="listadd"||n.type==="listremove"||n.type==="listclear"){
     const t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",new Set(),"List<"+t+">");if(n.type==="listadd")out.push(p+"if ("+l+" != null) "+l+".Add("+valueForInput(n,"item",new Set(),t)+");");else if(n.type==="listremove")out.push(p+"if ("+l+" != null) "+l+".Remove("+valueForInput(n,"item",new Set(),t)+");");else out.push(p+"if ("+l+" != null) "+l+".Clear();");
