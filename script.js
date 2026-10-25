@@ -237,7 +237,7 @@ function addNode(type,x,y,values={}) {
  nodes.push(n);selectedNode=n.id;renderAll();return n;
 }
 function customPortTypes(){return [...new Set([...(BlueprintTypes.all||[]),"object","UnityEngine.Object","Vector2","Vector3","Vector4","Quaternion","Color","List<int>","List<float>","List<bool>","List<string>","List<GameObject>","List<Transform>","List<Vector2>","List<Vector3>"])].sort((a,b)=>a.localeCompare(b))}
-function customPortDefault(type){if(type==="string")return "";if(type==="bool")return "false";if(["int","float","double","decimal","long","short","byte","uint","ulong"].includes(type))return "0";if(["Vector2","Vector3","Vector4"].includes(type))return type+".zero";if(type==="Quaternion")return "Quaternion.identity";if(type==="Color")return "Color.white";if(type==="Color32")return "Color32.white";if(type.startsWith("List<")||type.endsWith("[]"))return "[]";return "null"}
+function customPortDefault(type){if(type==="string")return "";if(type==="bool")return "false";if(["int","float","double","decimal","long","short","byte","uint","ulong"].includes(type))return "0";if(["Vector2","Vector3","Vector4"].includes(type))return type+".zero";if(type==="Quaternion")return "Quaternion.identity";if(type==="Color")return "Color.white";if(type==="Color32")return "new Color32(255,255,255,255)";if(type.startsWith("List<")||type.endsWith("[]"))return "[]";return "null"}
 function saveCurrentCustomDefinition(){
  if(!customEditingId)return;
  const def=customBlocks.find(x=>x.id===customEditingId);if(!def)return;
