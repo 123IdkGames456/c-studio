@@ -216,7 +216,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    const type=n.values?.type||"int",raw=n.values?.value??"0";
    if(/^List<.+>$/.test(type)){
     const elementType=type.slice(5,-1);let items=[];try{const parsed=JSON.parse(raw||"[]");if(Array.isArray(parsed))items=parsed;}catch{}
-    expression="new List<"+elementType+"> { "+items.map(item=>{const value=String(item??"").trim();if(elementType==="string")return escString(value);if(elementType==="bool")return value==="true"?"true":"false";if(value==="null")return "null";if(numericTypes.has(elementType))return cleanNumber(value,elementType);return typedFallback(value,elementType);}).join(", ")+" }";sourceType=type;
+    expression="new List<"+elementType+"> { "+items.map(item=>{const value=String(item??"").trim();if(elementType==="string")return escString(value);if(elementType==="bool")return value==="true"||item===true?"true":"false";if(value==="null")return "null";if(numericTypes.has(elementType)){if(["int","long","short","byte","uint","ulong","ushort","sbyte"].includes(elementType)&&/[.eE]/.test(value))return cleanNumber(String(Math.trunc(Number(value)||0)),elementType);if(elementType==="float"&&Number.isFinite(Number(value)))return cleanNumber((Number(value)).toFixed(2),"float");return cleanNumber(value,elementType);}return typedFallback(value,elementType);}).join(", ")+" }";sourceType=type;
    }else if(type==="string")expression=escString(raw);
    else if(type==="null")expression="null";
    else if(type==="bool")expression=raw==="true"||raw===true?"true":"false";
