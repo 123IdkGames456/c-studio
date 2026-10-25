@@ -244,7 +244,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    const referenceType=n.values?.referenceType||"GameObject";
    const list=valueForInput(n,"list",path,"List<"+elementType+">");
    const reference=valueForInput(n,"reference",path,referenceType);
-   const isFar=n.type==="listfarthest";
+   const isFar=n.type==="listfarthest"||n.values?.mode==="farthest";
    const dimensions=elementType==="Vector2"?2:3;
    const vectorType=dimensions===2?"Vector2":"Vector3";
    const toPosition=(expr,type)=>{
@@ -292,7 +292,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="stringconcat"){const a=valueForInput(n,"a",path,"object"),b=valueForInput(n,"b",path,"object");expression="Convert.ToString("+a+") + Convert.ToString("+b+")";sourceType="string";
    }else if(n.type==="stringcontains"){const a=valueForInput(n,"text",path,"string"),b=valueForInput(n,"search",path,"string");expression="("+a+" != null && "+a+".Contains("+b+"))";sourceType="bool";
    }else if(n.type==="stringreplace"){const a=valueForInput(n,"text",path,"string"),b=valueForInput(n,"old",path,"string"),c=valueForInput(n,"replacement",path,"string");expression="("+a+" ?? string.Empty).Replace("+b+", "+c+")";sourceType="string";
-   }else if(n.type==="deltatime"){expression="Time.deltaTime";sourceType="float";
+   }else if(n.type==="deltatime"){expression=(n.values?.mode==="fixed"?"Time.fixedDeltaTime":"Time.deltaTime");sourceType="float";
    }else if(n.type==="fixedtime"){expression="Time.fixedDeltaTime";sourceType="float";
    }else if(n.type==="vectordot"){expression="Vector3.Dot("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="float";
    }else if(n.type==="vectorcross"){expression="Vector3.Cross("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="Vector3";
