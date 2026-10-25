@@ -908,7 +908,7 @@ async function publishItem(type,item){
  const kind=type==="code"?"code":"custom",label=kind==="code"?"code":"custom block";
  const name=String(item.name||"Untitled").trim().slice(0,120);
  if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);alert(message);return}
- const serializedPayload=JSON.stringify(item.payload),maxPayloadChars=225000;
+ const previousIds=new Set(exploreItems.map(x=>String(x.id))),serializedPayload=JSON.stringify(item.payload),maxPayloadChars=225000;
  if(serializedPayload.length>maxPayloadChars){const message="Publish failed: this item contains "+serializedPayload.length.toLocaleString()+" characters of data, but the five Google Sheets payload cells support up to "+maxPayloadChars.toLocaleString()+". Reduce the project size and try again.";status(message);alert(message);return}
  const form=await openExploreModal("Publish "+label,'<p class="subtle">Choose a password for this public listing. You will need the exact same password to rename, remove, or change its password later.</p><div class="form-row"><label for="explorePublishPassword">Password</label><input id="explorePublishPassword" type="password" autocomplete="new-password" maxlength="200" required placeholder="Create a password"></div><div class="form-row"><label for="explorePublishPasswordAgain">Confirm password</label><input id="explorePublishPasswordAgain" type="password" autocomplete="new-password" maxlength="200" required placeholder="Enter it again"></div>',"Publish",()=>{
   const password=$("explorePublishPassword")?.value??"",again=$("explorePublishPasswordAgain")?.value??"";
@@ -929,7 +929,7 @@ async function publishItem(type,item){
     const data=await jsonpList(endpoint);
     if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");
     const items=Array.isArray(data.items)?data.items:[];
-    published=items.find(x=>x.type===kind&&String(x.name||"").trim()===name&&JSON.stringify(x.payload)===serializedPayload)||null;
+    published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&JSON.stringify(x.payload)===serializedPayload)||null;
     exploreItems=items;
     if(published){payloadMatches=true;break}
    }catch(e){lastError=e}
@@ -967,7 +967,7 @@ async function sendExploreManage(id,password,manageAction,extra={}){
    const current=exploreItems.find(x=>String(x.id)===String(id));
    if(manageAction==="rename"&&current&&current.name===extra.name)return {ok:true};
    if(manageAction==="delete"&&!current)return {ok:true};
-   if(manageAction==="changePassword"&&current)return {ok:true};
+   if(manageAction==="changePassword"&&current){try{await verifyExplorePassword(id,extra.newPassword);return {ok:true}}catch(e){lastError=e}}
   }catch(e){lastError=e}
  }
  throw Error("The change was sent but could not be confirmed. "+(lastError?"Last check error: "+lastError.message+". ":"")+"Check the Apps Script deployment and execution log.");
