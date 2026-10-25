@@ -903,26 +903,75 @@ function openExploreModal(title,body,confirmText="Save",validate=null){
  });
 }
 async function publishItem(type,item){
- closeExploreMenus();const endpoint=exploreEndpoint();if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);alert(message);return}
+ closeExploreMenus();
+ const endpoint=exploreEndpoint();
  const kind=type==="code"?"code":"custom",label=kind==="code"?"code":"custom block";
- const dialog=await openExploreModal("Publish "+(kind==="code"?"Code":"Custom Block"),'<p class="subtle">Choose the public name and a password. You must enter this exact password to rename, remove, or change the password for this listing.</p><div class="form-row"><label for="exploreModalFirstInput">Public name</label><input id="exploreModalFirstInput" maxlength="120" value="'+esc(item.name||"Untitled")+'" placeholder="Name shown in Explore"></div><div class="form-row"><label for="explorePublishPassword">Password</label><input id="explorePublishPassword" type="password" maxlength="200" autocomplete="new-password" placeholder="Create a password"></div><p id="explorePublishError" role="alert" style="color:#ff7777;min-height:1.2em"></p><p class="subtle">Anyone who already installed an item keeps their local copy if you later remove it. The password is saved in your Google Sheet and is not shown publicly in Explore.</p>',"Publish",()=>{const name=($("exploreModalFirstInput")?.value||"").trim(),password=$("explorePublishPassword")?.value||"",error=$("explorePublishError");if(!name){error.textContent="Enter a public name before publishing.";return false}if(!password){error.textContent="Enter a password.";return false}return {confirmed:true,name,password}});
- if(!dialog)return;const {name,password}=dialog,author="C-Studio user",previousIds=new Set(exploreItems.map(x=>String(x.id))),serializedPayload=JSON.stringify(item.payload),maxPayloadChars=225000;
+ const name=String(item.name||"Untitled").trim().slice(0,120);
+ if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);alert(message);return}
+ const previousIds=new Set(exploreItems.map(x=>String(x.id))),serializedPayload=JSON.stringify(item.payload),maxPayloadChars=225000;
  if(serializedPayload.length>maxPayloadChars){const message="Publish failed: this item contains "+serializedPayload.length.toLocaleString()+" characters of data, but the five Google Sheets payload cells support up to "+maxPayloadChars.toLocaleString()+". Reduce the project size and try again.";status(message);alert(message);return}
- $("modal").hidden=true;closeExploreMenus();showExploreProgress("Publishing "+label,"Step 1/5 · Preparing project data and password…",5);status("Publishing "+label+"…");
- try{showExploreProgress("Publishing "+label,"Step 2/5 · Sending project data and password to Google Sheets…",18);await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,username:author,password,payload:item.payload})});showExploreProgress("Publishing "+label,"Step 3/5 · Checking that Google Sheets saved the item…",35);
- let lastError=null,published=null,verified=false,payloadMatches=false;for(let attempt=1;attempt<=10;attempt++){showExploreProgress("Publishing "+label,"Checking saved data and password… attempt "+attempt+" of 10.",35+attempt*5);await new Promise(resolve=>setTimeout(resolve,1100));try{const data=await jsonpList(endpoint);if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");const items=Array.isArray(data.items)?data.items:[];published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name)||null;exploreItems=items;if(!published)continue;showExploreProgress("Publishing "+label,"Step 4/5 · Verifying the exact password against the saved sheet record…",88);const check=await jsonpRequest(endpoint,{action:"verify",id:published.id,password});verified=!!check&&check.ok===true&&check.valid===true;payloadMatches=JSON.stringify(published.payload)===serializedPayload;if(verified&&payloadMatches)break;if(!verified)throw Error(check?.error||"The saved password did not pass exact-match verification.");if(!payloadMatches)throw Error("The saved project data does not match the item that was sent.")}catch(e){lastError=e}}
- if(published&&verified&&payloadMatches){showExploreProgress("Publishing complete","Step 5/5 · Confirmed: project data and password are saved correctly. Returning to the canvas…",100);status("Publish successful: "+name+" · project data and password verified in Google Sheets.");await new Promise(resolve=>setTimeout(resolve,1200))}else{const message="Publish failed: Google Sheets did not confirm the project data and exact password."+(lastError?" Last error: "+lastError.message+". ":"")+"Make sure the new explore-backend.gs is pasted into Apps Script and deployed as a new version with access set to anyone with the link.";showExploreProgress("Publishing failed",message,100);status(message);alert(message)}
- }catch(e){const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Google Apps Script deployment.";showExploreProgress("Publishing failed",message,100);status(message);alert(message)}finally{finishExploreProgress()}
+ showExploreProgress("Publishing "+label,"Step 1/4 · Preparing project data…",8);status("Publishing "+label+"…");
+ try{
+  showExploreProgress("Publishing "+label,"Step 2/4 · Sending project data to Google Sheets…",20);
+  await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author:"C-Studio user",payload:item.payload})});
+  let lastError=null,published=null,payloadMatches=false;
+  for(let attempt=1;attempt<=10;attempt++){
+   showExploreProgress("Publishing "+label,"Step 3/4 · Waiting for Google Sheets to confirm the item… attempt "+attempt+" of 10.",25+attempt*6);
+   await new Promise(resolve=>setTimeout(resolve,1100));
+   try{
+    const data=await jsonpList(endpoint);
+    if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");
+    const items=Array.isArray(data.items)?data.items:[];
+    published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name)||null;
+    exploreItems=items;
+    if(!published)continue;
+    payloadMatches=JSON.stringify(published.payload)===serializedPayload;
+    if(payloadMatches)break;
+    throw Error("The saved project data does not match the item that was sent.");
+   }catch(e){lastError=e}
+  }
+  if(published&&payloadMatches){
+   renderExplore();
+   showExploreProgress("Publishing complete","Step 4/4 · Confirmed in Google Sheets. Returning to the canvas…",100);
+   status("Publish successful: "+name+" · confirmed in Google Sheets.");
+   await new Promise(resolve=>setTimeout(resolve,1000));
+  }else{
+   const message="Publish failed: Google Sheets did not confirm the new item."+(lastError?" Last error: "+lastError.message+". ":"")+"Check the Apps Script deployment, permissions, and execution log, then refresh Explore.";
+   showExploreProgress("Publishing failed",message,100);status(message);alert(message);
+  }
+ }catch(e){
+  const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Google Apps Script deployment.";
+  showExploreProgress("Publishing failed",message,100);status(message);alert(message);
+ }finally{finishExploreProgress()}
 }
 async function manageExploreItem(id){
  const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;
- const pd=await openExploreModal("Edit published item",'<p class="subtle">Enter the exact password used when “'+esc(item.name)+'” was published.</p><div class="form-row"><label for="exploreModalFirstInput">Password</label><input id="exploreModalFirstInput" type="password" autocomplete="current-password" placeholder="Exact password"></div><p class="subtle">Password matching is exact, including uppercase/lowercase and spaces. Removing the listing prevents new installs. Existing local copies will not be deleted.</p>',"Continue");
- if(!pd)return;const password=$("exploreModalFirstInput")?.value||"";if(!password){alert("Enter the password.");return}const verifyButton=$("modalConfirm");verifyButton.disabled=true;verifyButton.textContent="Checking password…";
- try{const verification=await jsonpRequest(exploreEndpoint(),{action:"verify",id:item.id,password});if(!verification||verification.ok!==true||verification.valid!==true){alert(verification?.error||"Password does not match this listing exactly.");return}}catch(error){alert("Could not verify the password with Google Apps Script: "+(error?.message||String(error)));return}finally{verifyButton.disabled=false;verifyButton.textContent="Continue"}
- const ad=await openExploreModal("Manage published item",'<p class="subtle">Rename the public listing, change its password, or remove it from Explore.</p><div class="form-row"><label for="exploreRenamePublic">Public name</label><input id="exploreRenamePublic" maxlength="120" value="'+esc(item.name)+'"></div><div class="form-row"><button id="exploreRenameAction" type="button">Rename listing</button></div><div class="form-row"><label for="exploreChangePassword">New password</label><input id="exploreChangePassword" type="password" maxlength="200" autocomplete="new-password" placeholder="Leave empty to keep current password"></div><div class="form-row"><button id="exploreChangePasswordAction" type="button">Change password</button></div><div class="form-row"><button id="exploreRemoveAction" class="danger" type="button">Remove from Explore</button></div><p class="subtle">Anyone who already installed this item keeps their copy. Removing it prevents new installs.</p>',"Close");if(!ad)return;
- const doManage=async(action,value)=>{if(action==="delete"&&!confirm("Remove this listing from Explore? Existing installed copies will remain."))return;if(action==="rename"&&(!value||value.trim()===item.name)){alert("Enter a different public name.");return}if(action==="changePassword"&&!value){alert("Enter a new password.");return}const connection=$("exploreConnectionStatus");connection.textContent=action==="delete"?"Removing listing…":action==="rename"?"Renaming listing…":"Changing password…";status(connection.textContent);
- try{await fetch(exploreEndpoint(),{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"manage",manageAction:action==="changePassword"?"changePassword":action,id:item.id,password,newPassword:action==="changePassword"?value:undefined,name:action==="rename"?value.trim():undefined})});let confirmed=false,lastError=null;for(let attempt=1;attempt<=6;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));try{const data=await jsonpList(exploreEndpoint());if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");exploreItems=Array.isArray(data.items)?data.items:[];const current=exploreItems.find(x=>String(x.id)===String(item.id));if((action==="delete"&&!current)||(action==="rename"&&current&&current.name===value.trim())||(action==="changePassword"&&current)){if(action==="changePassword"){const check=await jsonpRequest(exploreEndpoint(),{action:"verify",id:item.id,password:value});if(!check||check.ok!==true||check.valid!==true)throw Error("The new password was not accepted by verification.");}confirmed=true;break}if(!current&&action!=="delete")throw Error("The listing disappeared while checking the change.")}catch(e){lastError=e}}renderExplore();if(confirmed){connection.textContent=action==="delete"?"Removed from Explore. Existing copies remain.":action==="rename"?"Public listing renamed to “"+value.trim()+"”.":"Password changed successfully.";status(connection.textContent);$("modal").hidden=true}else{const message="Could not confirm the change. Check the password and Apps Script deployment."+(lastError?" Error: "+lastError.message:"");connection.textContent=message;alert(message)}}catch(e){const message="Manage action failed: "+(e?.message||String(e));connection.textContent=message;alert(message)}};
- $("exploreRenameAction").onclick=()=>doManage("rename",$("exploreRenamePublic").value);$("exploreChangePasswordAction").onclick=()=>doManage("changePassword",$("exploreChangePassword").value);$("exploreRemoveAction").onclick=()=>doManage("delete");
+ const ad=await openExploreModal("Edit published item",'<p class="subtle">Anyone can rename or remove this public listing. People who already installed it keep their local copy; removing it prevents new installs.</p><div class="form-row"><label for="exploreRenamePublic">Public name</label><input id="exploreRenamePublic" maxlength="120" value="'+esc(item.name)+'"></div><div class="form-row"><button id="exploreRenameAction" type="button">Rename listing</button></div><div class="form-row"><button id="exploreRemoveAction" class="danger" type="button">Remove from Explore</button></div>',"Close");
+ if(!ad)return;
+ const doManage=async(action,value)=>{
+  if(action==="delete"&&!confirm("Remove this listing from Explore? Existing installed copies will remain."))return;
+  if(action==="rename"&&(!value||value.trim()===item.name)){alert("Enter a different public name.");return}
+  const connection=$("exploreConnectionStatus");connection.textContent=action==="delete"?"Removing listing…":"Renaming listing…";status(connection.textContent);
+  try{
+   await fetch(exploreEndpoint(),{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"manage",manageAction:action,id:item.id,name:action==="rename"?value.trim():undefined})});
+   let confirmed=false,lastError=null;
+   for(let attempt=1;attempt<=6;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,1000));
+    try{
+     const data=await jsonpList(exploreEndpoint());if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");
+     exploreItems=Array.isArray(data.items)?data.items:[];
+     const current=exploreItems.find(x=>String(x.id)===String(item.id));
+     if((action==="delete"&&!current)||(action==="rename"&&current&&current.name===value.trim())){confirmed=true;break}
+     if(!current&&action!=="delete")throw Error("The listing disappeared while checking the change.");
+    }catch(e){lastError=e}
+   }
+   renderExplore();
+   if(confirmed){connection.textContent=action==="delete"?"Removed from Explore. Existing copies remain.":"Public listing renamed to “"+value.trim()+"”.";status(connection.textContent);$("modal").hidden=true}
+   else{const message="Could not confirm the change."+(lastError?" Last error: "+lastError.message+". ":"")+"Check the Apps Script deployment and execution log.";connection.textContent=message;alert(message)}
+  }catch(e){const message="Manage action failed: "+(e?.message||String(e));connection.textContent=message;alert(message)}
+ };
+ $("exploreRenameAction").onclick=()=>doManage("rename",$("exploreRenamePublic").value);
+ $("exploreRemoveAction").onclick=()=>doManage("delete");
 }
 function installExploreItem(id){const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;let payload=item.payload;try{if(typeof payload==="string")payload=JSON.parse(payload)}catch{alert("This published item has invalid data.");return}if(item.type==="code"){const project=payload?.project||payload;if(!project||!Array.isArray(project.nodes)){alert("This published code has invalid project data.");return}const all=libraryEntries();if(all.some(e=>e.publishedSourceId===item.id)){status("Already installed in Library > Codes.");return}const entry=makeEntry(project,item.name||project.projectName||"Installed code");entry.publishedSourceId=item.id;entry.folder="Explore installs";all.unshift(entry);writeLibrary(all);renderLibrary();status("Installed locally. Open Library > Codes to rename or load it.");return}const incoming=Array.isArray(payload?.customBlocks)?payload.customBlocks:(payload?.customBlock?[payload.customBlock]:[payload]);if(!incoming.length||!incoming[0]?.nodes){alert("This published custom block has invalid data.");return}if(customBlocks.some(b=>b.publishedSourceId===item.id)){status("Already installed in Library > Custom Blocks.");return}const idMap=new Map(incoming.map(b=>[String(b.id),"installed_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,7)+"_"+String(b.id).replace(/[^a-z0-9]/gi,"").slice(-6)]));const cloned=incoming.map((b,i)=>{const c=JSON.parse(JSON.stringify(b));c.id=idMap.get(String(b.id));c.publishedSourceId=i===0?item.id:undefined;if(i===0)c.name=item.name||b.name;c.nodes=(c.nodes||[]).map(n=>{if(String(n.type).startsWith("customblock_")){const old=n.type.slice("customblock_".length);if(idMap.has(old))n.type="customblock_"+idMap.get(old)}return n});return c});customBlocks.push(...cloned);saveCustomBlocks();syncCustomDefs();renderCustomBlockLibrary();status("Installed locally. Open Library > Custom Blocks to edit or rename your copy.")}
 $("openExplore").onclick=openExplore;$("closeExplore").onclick=()=>$("explorePanel").hidden=true;$("saveExploreEndpoint").onclick=saveExploreEndpoint;$("exploreCodesTab").onclick=()=>setExploreTab("codes");$("exploreCustomTab").onclick=()=>setExploreTab("custom");$("refreshExploreCodes").onclick=refreshExplore;$("refreshExploreCustom").onclick=refreshExplore;$("exploreCodesSearch").addEventListener("input",renderExplore);$("exploreCustomSearch").addEventListener("input",renderExplore);["exploreCodesList","exploreCustomList"].forEach(listId=>$(listId).addEventListener("click",e=>{const b=e.target.closest("[data-explore-action]");if(!b)return;if(b.dataset.exploreAction==="install")installExploreItem(b.dataset.id);if(b.dataset.exploreAction==="edit")manageExploreItem(b.dataset.id)}));$("exploreEndpoint").value=exploreEndpoint();
