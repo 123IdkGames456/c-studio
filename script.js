@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const defs = BlueprintBlocks.defs;
 const CUSTOM_BLOCKS_KEY="ikirumi-unity-custom-blocks-v1";
 let customBlocks=(()=>{try{const x=JSON.parse(localStorage.getItem(CUSTOM_BLOCKS_KEY)||"[]");return Array.isArray(x)?x:[]}catch{return []}})();
-let customEditingId=null,customParentState=null,lastCustomNodeClick={id:null,time:0};
+let customEditingId=null,customParentState=null,customEditorStack=[],lastCustomNodeClick={id:null,time:0};
 let nodes = [], links = [], variables = [], nextNode = 1, nextVariable = 1;
 let selectedNode = null, pendingPin = null, activeCategory = "All", codeVisible = true, activeView = "graph";
 function saveCustomBlocks(){try{localStorage.setItem(CUSTOM_BLOCKS_KEY,JSON.stringify(customBlocks))}catch(e){status("Custom block save failed: browser storage is full")}}
@@ -247,7 +247,6 @@ function saveCurrentCustomDefinition(){
  syncCustomDefs();saveCustomBlocks();
 }
 function openCreateCustomBlock(){
- if(customEditingId){status("Exit the current custom block before creating another");return}
  const name=(prompt("Name your new custom node:","My Custom Node")||"").trim();
  if(!name)return;
  if(customBlocks.some(b=>b.name.toLowerCase()===name.toLowerCase())){alert("A custom node with that name already exists.");return}
@@ -256,9 +255,14 @@ function openCreateCustomBlock(){
  saveCustomBlocks();syncCustomDefs();enterCustomEditor(id);
 }
 function enterCustomEditor(id){
- if(customEditingId){status("Exit the current custom block before opening another");return}
  const def=customBlocks.find(x=>x.id===id);if(!def)return;
- customParentState={nodes,links,variables,nextNode,nextVariable,selectedNode,projectName:$("projectName").value,scrollLeft:$("workspace").scrollLeft,scrollTop:$("workspace").scrollTop};
+ if(customEditingId){
+  if(customEditingId===id||customEditorStack.some(x=>x.editingId===id)){status("A custom block cannot edit itself recursively");return}
+  saveCurrentCustomDefinition();
+  customEditorStack.push({editingId:customEditingId,state:{nodes,links,variables,nextNode,nextVariable,selectedNode,scrollLeft:$("workspace").scrollLeft,scrollTop:$("workspace").scrollTop}});
+ }else{
+  customParentState={nodes,links,variables,nextNode,nextVariable,selectedNode,projectName:$("projectName").value,scrollLeft:$("workspace").scrollLeft,scrollTop:$("workspace").scrollTop};
+ }
  customEditingId=id;
  nodes=JSON.parse(JSON.stringify(def.nodes||[]));links=JSON.parse(JSON.stringify(def.links||[]));variables=JSON.parse(JSON.stringify(def.variables||[]));
  nextNode=def.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=def.nextVariable||variables.length+1;
@@ -269,11 +273,17 @@ function enterCustomEditor(id){
  $("workspace").scrollTo({left:0,top:0,behavior:"auto"});status("Editing custom node: "+def.name);renderAll();
 }
 function exitCustomEditor(){
- if(!customEditingId||!customParentState)return;
+ if(!customEditingId)return;
  const def=customBlocks.find(x=>x.id===customEditingId);saveCurrentCustomDefinition();
+ if(customEditorStack.length){
+  const parent=customEditorStack.pop(),parentDef=customBlocks.find(x=>x.id===parent.editingId),state=parent.state;
+  customEditingId=parent.editingId;nodes=state.nodes;links=state.links;variables=state.variables;nextNode=state.nextNode;nextVariable=state.nextVariable;selectedNode=state.selectedNode;
+  syncCustomDefs();renderAll();status("Returned to custom node: "+(parentDef?.name||"Custom Node"));return;
+ }
  const parent=customParentState;customEditingId=null;customParentState=null;
- nodes=parent.nodes;links=parent.links;variables=parent.variables;nextNode=parent.nextNode;nextVariable=parent.nextVariable;selectedNode=parent.selectedNode;
- $("projectName").value=parent.projectName||"My Blueprint Project";$("projectName").disabled=false;$("workspace").scrollTo({left:parent.scrollLeft||0,top:parent.scrollTop||0,behavior:"auto"});
+ if(parent){nodes=parent.nodes;links=parent.links;variables=parent.variables;nextNode=parent.nextNode;nextVariable=parent.nextVariable;selectedNode=parent.selectedNode;
+  $("projectName").value=parent.projectName||"My Blueprint Project";$("projectName").disabled=false;$("workspace").scrollTo({left:parent.scrollLeft||0,top:parent.scrollTop||0,behavior:"auto"});
+ }
  $("exitCustomEditor").hidden=true;document.querySelector(".top-actions").style.display="flex";
  syncCustomDefs();renderAll();status("Saved custom node: "+(def?.name||"Custom Node"));
 }
