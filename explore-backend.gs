@@ -67,7 +67,7 @@ function doPost(e) {
       const password = String(data.password || "");
       const manageAction = String(data.manageAction || "");
       if (!id || !password) throw new Error("A listing ID and owner password are required.");
-      if (!["rename", "delete"].includes(manageAction)) throw new Error("Unsupported management action.");
+      if (!["rename", "delete", "changePassword"].includes(manageAction)) throw new Error("Unsupported management action.");
       const sheets = setupAndGetSheets_();
       let foundSheet = null, foundRow = -1, headers = null, row = null;
       sheets.some(sheet => {
@@ -88,6 +88,14 @@ function doPost(e) {
       if (manageAction === "delete") {
         foundSheet.deleteRow(foundRow);
         return output_({ ok: true, message: "Listing removed. Existing local copies are unaffected." });
+      }
+      if (manageAction === "changePassword") {
+        const newPassword = String(data.newPassword || "");
+        if (newPassword.length < 6) throw new Error("New owner password must be at least 6 characters.");
+        const newSalt = Utilities.getUuid();
+        foundSheet.getRange(foundRow, headers.indexOf("passwordSalt") + 1).setValue(newSalt);
+        foundSheet.getRange(foundRow, headers.indexOf("passwordHash") + 1).setValue(passwordHash_(newSalt, newPassword));
+        return output_({ ok: true, message: "Owner password changed." });
       }
       const newName = String(data.name || "").trim();
       if (!newName) throw new Error("A new public name is required.");
