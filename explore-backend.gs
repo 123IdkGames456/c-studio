@@ -1,7 +1,7 @@
 const SPREADSHEET_ID = "1nKedb6JGWsrFsXy9CVmXH2dfs57xDseXZgNW3609boA";
 const CODES_SHEET_NAME = "Published Codes";
 const CUSTOM_BLOCKS_SHEET_NAME = "Published Custom Blocks";
-const HEADERS = ["id", "type", "name", "description", "author", "createdAt", "payload", "passwordSalt", "passwordHash"];
+const HEADERS = ["id", "type", "name", "description", "author", "createdAt", "payload", "passwordSalt", "passwordHash", "passwordUpdatedAt"];
 
 function setupExploreSheets() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -46,6 +46,9 @@ function doGet(e) {
           createdAt: item.createdAt instanceof Date
             ? item.createdAt.toISOString()
             : String(item.createdAt || ""),
+          passwordUpdatedAt: item.passwordUpdatedAt instanceof Date
+            ? item.passwordUpdatedAt.toISOString()
+            : String(item.passwordUpdatedAt || ""),
           payload: payload
         });
       });
@@ -95,6 +98,7 @@ function doPost(e) {
         const newSalt = Utilities.getUuid();
         foundSheet.getRange(foundRow, headers.indexOf("passwordSalt") + 1).setValue(newSalt);
         foundSheet.getRange(foundRow, headers.indexOf("passwordHash") + 1).setValue(passwordHash_(newSalt, newPassword));
+        foundSheet.getRange(foundRow, headers.indexOf("passwordUpdatedAt") + 1).setValue(new Date().toISOString());
         return output_({ ok: true, message: "Owner password changed." });
       }
       const newName = String(data.name || "").trim();
@@ -124,6 +128,7 @@ function doPost(e) {
       description: String(data.description || "").trim().slice(0, 500),
       author: String(data.author || "C-Studio user").trim().slice(0, 80),
       createdAt: new Date().toISOString(),
+      passwordUpdatedAt: new Date().toISOString(),
       payload: serialized,
       passwordSalt: salt,
       passwordHash: passwordHash_(salt, String(data.password))
