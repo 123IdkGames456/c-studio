@@ -96,6 +96,9 @@ const defs=[
 {id:"moverotation",name:"Rigidbody Move Rotation",category:"Physics",color:"#65c7c1",kind:"flow",desc:"Move a Rigidbody to a rotation during the physics update.",aliases:["move rotation","rigidbody move rotation"],flowIn:["Exec"],flowOut:["Then"],dataIn:[{id:"body",label:"Rigidbody",type:"Rigidbody"},{id:"rotation",label:"Rotation",type:"Quaternion"}]},
 {id:"isgrounded",name:"Character Is Grounded",category:"Physics",color:"#65c7c1",kind:"value",desc:"Check whether a CharacterController is touching the ground.",aliases:["is grounded","character controller grounded","ground check"],valueOut:"bool",dataIn:[{id:"controller",label:"Character Controller",type:"CharacterController"}]},
 {id:"randomsphere",name:"Random Inside Unit Sphere",category:"Math",color:"#6fa7ff",kind:"value",desc:"Generate a random Vector3 inside or on the unit sphere.",aliases:["random inside unit sphere","random sphere","random vector3"],valueOut:"Vector3"},
+{id:"createcustom",name:"Create Custom",category:"Custom Nodes",color:"#d09aff",kind:"action",desc:"Create a reusable custom node with its own inputs, outputs, graph, and instance-scoped variables.",aliases:["create custom","custom node","make custom block"]},
+{id:"custominput",name:"Custom Input",category:"Custom Nodes",color:"#d09aff",kind:"flow",desc:"Fixed custom-block entry boundary. Add named, typed input pins in the Inspector.",flowIn:["Exec"],flowOut:["Then"]},
+{id:"customoutput",name:"Custom Output",category:"Custom Nodes",color:"#d09aff",kind:"flow",desc:"Fixed custom-block exit boundary. Add named, typed output pins in the Inspector.",flowIn:["Exec"],flowOut:["Then"]},
 {id:"comment",name:"Comment",category:"Utility",color:"#929bad",kind:"comment",desc:"Add a note to the graph.",aliases:["note","documentation","label"],fields:[{id:"text",label:"Text",type:"literal",default:"Explain this section"}]}
 ];
 return {defs,categories:[...new Set(defs.map(d=>d.category))]};
