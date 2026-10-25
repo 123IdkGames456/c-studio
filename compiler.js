@@ -90,6 +90,17 @@ function compile(inputNodes,inputLinks,inputVars,className){
  function nodeType(n){
   if(!n)return "dynamic";
   if(n.type==="getfirsttag")return "GameObject";
+   if(["getparent","getchild","findchild"].includes(n.type))return "GameObject";
+   if(["getcomponentchildren","getcomponentparent"].includes(n.type))return n.values?.componentType||"Rigidbody";
+   if(["getvelocity","vectorcross","vectornormalize"].includes(n.type))return "Vector3";
+   if(n.type==="listcount")return "int";
+   if(["listcontains","isnull","getactivestate","raycast","spherecast","overlapsphere","stringcontains"].includes(n.type))return "bool";
+   if(["stringconcat","stringreplace"].includes(n.type))return "string";
+   if(["deltatime","fixedtime","vectordot"].includes(n.type))return "float";
+   if(n.type==="createlist")return "List<"+(n.values?.elementType||"GameObject")+">";
+   if(n.type==="foreach")return n.values?.elementType||"GameObject";
+   if(n.type==="randomrange")return n.values?.resultType||"float";
+   if(["clamp","lerp","mathutility"].includes(n.type))return n.values?.valueType||"float";
   if(n.type==="getalltag")return "List<GameObject>";
   if(["listelement","listclosest","listfarthest"].includes(n.type))return n.values?.elementType||"GameObject";
   if(n.type==="if"){
@@ -250,7 +261,34 @@ function compile(inputNodes,inputLinks,inputVars,className){
     expression="("+list+" != null && "+count+" > 0 ? "+list+"["+bestIndex+"] : "+typedDefault(elementType)+")";
     sourceType=elementType;
    }
-  }else if(n.type==="self"){
+  }else if(n.type==="getparent"){const t=valueForInput(n,"target",path,"GameObject");expression="("+t+" != null && "+t+".transform.parent != null ? "+t+".transform.parent.gameObject : null)";sourceType="GameObject";
+   }else if(n.type==="getchild"){const t=valueForInput(n,"target",path,"GameObject"),i=valueForInput(n,"index",path,"int");expression="("+t+" != null && "+i+" >= 0 && "+i+" < "+t+".transform.childCount ? "+t+".transform.GetChild("+i+").gameObject : null)";sourceType="GameObject";
+   }else if(n.type==="findchild"){const t=valueForInput(n,"target",path,"GameObject"),nm=escString(n.values?.name||"Child");expression="("+t+" != null && "+t+".transform.Find("+nm+") != null ? "+t+".transform.Find("+nm+").gameObject : null)";sourceType="GameObject";
+   }else if(n.type==="getcomponentchildren"||n.type==="getcomponentparent"){const ct=n.values?.componentType||"Rigidbody",t=valueForInput(n,"target",path,"GameObject");expression="("+t+" != null ? "+t+".GetComponent"+(n.type==="getcomponentchildren"?"InChildren":"InParent")+"<"+ct+">() : null)";sourceType=ct;
+   }else if(n.type==="getvelocity"){const b=valueForInput(n,"body",path,"Rigidbody");expression="("+b+" != null ? "+b+".velocity : Vector3.zero)";sourceType="Vector3";
+   }else if(n.type==="raycast"||n.type==="spherecast"){const o=valueForInput(n,"origin",path,"Vector3"),d=valueForInput(n,"direction",path,"Vector3"),max=cleanNumber(n.values?.maxDistance??"100","float");expression=n.type==="raycast"?"Physics.Raycast("+o+", "+d+", "+max+")":"Physics.SphereCast("+o+", "+cleanNumber(n.values?.radius??"0.5","float")+", "+d+", "+max+")";sourceType="bool";
+   }else if(n.type==="overlapsphere"){const c=valueForInput(n,"center",path,"Vector3");expression="(Physics.OverlapSphere("+c+", "+cleanNumber(n.values?.radius??"1","float")+").Length > 0)";sourceType="bool";
+   }else if(n.type==="createlist"){const t=n.values?.elementType||"GameObject";expression="new List<"+t+">()";sourceType="List<"+t+">";
+   }else if(n.type==="listcount"){const l=valueForInput(n,"list",path,"List<object>");expression="("+l+" != null ? "+l+".Count : 0)";sourceType="int";
+   }else if(n.type==="listcontains"){const t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",path,"List<"+t+">"),v=valueForInput(n,"item",path,t);expression="("+l+" != null && "+l+".Contains("+v+"))";sourceType="bool";
+   }else if(n.type==="isnull"){const v=valueForInput(n,"value",path,"object");expression="("+v+" == null)";sourceType="bool";
+   }else if(n.type==="getactivestate"){const t=valueForInput(n,"target",path,"GameObject");expression="("+t+" != null && "+t+".activeInHierarchy)";sourceType="bool";
+   }else if(n.type==="randomrange"){const t=n.values?.resultType||"float",a=valueForInput(n,"min",path,t),b=valueForInput(n,"max",path,t);expression="UnityEngine.Random.Range("+a+", "+b+")";sourceType=t;
+   }else if(n.type==="clamp"){const t=n.values?.valueType||"float",v=valueForInput(n,"value",path,t),a=valueForInput(n,"min",path,t),b=valueForInput(n,"max",path,t);expression="Mathf.Clamp("+v+", "+a+", "+b+")";sourceType=t;
+   }else if(n.type==="lerp"){const t=n.values?.valueType||"float",a=valueForInput(n,"a",path,t),b=valueForInput(n,"b",path,t),v=valueForInput(n,"t",path,"float");expression=(t==="Vector2"?"Vector2.Lerp":t==="Vector3"?"Vector3.Lerp":t==="Color"?"Color.Lerp":"Mathf.Lerp")+"("+a+", "+b+", "+v+")";sourceType=t;
+   }else if(n.type==="mathutility"){const t=n.values?.valueType||"float",op=n.values?.operation||"abs",v=valueForInput(n,"value",path,t),m={abs:"Abs",round:"Round",floor:"Floor",ceil:"Ceil",sqrt:"Sqrt"};expression=(t==="float"?"Mathf.":"Math.")+(m[op]||"Abs")+"("+v+")";sourceType=t;
+   }else if(n.type==="stringconcat"){const a=valueForInput(n,"a",path,"object"),b=valueForInput(n,"b",path,"object");expression="Convert.ToString("+a+") + Convert.ToString("+b+")";sourceType="string";
+   }else if(n.type==="stringcontains"){const a=valueForInput(n,"text",path,"string"),b=valueForInput(n,"search",path,"string");expression="("+a+" != null && "+a+".Contains("+b+"))";sourceType="bool";
+   }else if(n.type==="stringreplace"){const a=valueForInput(n,"text",path,"string"),b=valueForInput(n,"old",path,"string"),c=valueForInput(n,"replacement",path,"string");expression="("+a+" ?? string.Empty).Replace("+b+", "+c+")";sourceType="string";
+   }else if(n.type==="deltatime"){expression="Time.deltaTime";sourceType="float";
+   }else if(n.type==="fixedtime"){expression="Time.fixedDeltaTime";sourceType="float";
+   }else if(n.type==="vectordot"){expression="Vector3.Dot("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="float";
+   }else if(n.type==="vectorcross"){expression="Vector3.Cross("+valueForInput(n,"a",path,"Vector3")+", "+valueForInput(n,"b",path,"Vector3")+")";sourceType="Vector3";
+   }else if(n.type==="vectornormalize"){const v=valueForInput(n,"value",path,"Vector3");expression="("+v+".sqrMagnitude > 0f ? "+v+".normalized : Vector3.zero)";sourceType="Vector3";
+   }else if(n.type==="foreach"){expression=safeIdentifier(n.values?.itemName||"item","item",new Set());sourceType=n.values?.elementType||"GameObject";
+   }else if(["triggerenter","triggerstay","triggerexit"].includes(n.type)){expression="other";sourceType="Collider";
+   }else if(["collisionenter","collisionstay","collisionexit"].includes(n.type)){expression="collision";sourceType="Collision";
+   }else if(n.type==="self"){
    expression="gameObject";
   }else if(n.type==="getvar"){
    const v=findVar(n.values?.variable);
