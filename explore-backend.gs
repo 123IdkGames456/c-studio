@@ -189,38 +189,49 @@ function ensureHeaders_(sheet) {
     sheet.setFrozenRows(1);
     return;
   }
+
   const oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
-  const oldHeaders = oldValues[0].map(String);
-  const alreadyCanonical = HEADERS.every((header, i) => oldHeaders[i] === header) && oldHeaders.length === HEADERS.length;
-  if (alreadyCanonical) {
-    sheet.setFrozenRows(1);
-    return;
+  const oldHeaders = oldValues[0].map(value => String(value || "").trim());
+  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header))];
+  const rows = [headers];
+
+  for (let r = 1; r < oldValues.length; r++) {
+    const oldRow = oldValues[r];
+    const obj = {};
+    oldHeaders.forEach((header, i) => {
+      if (header) obj[header] = oldRow[i];
+    });
+
+    const payload = readPayload_(obj);
+    const row = { ...obj };
+    if (!row.id) row.id = Utilities.getUuid();
+    if (!row.type) row.type = sheet.getName() === CUSTOM_BLOCKS_SHEET_NAME ? "custom" : "code";
+    if (!row.name) row.name = "Recovered item";
+    if (row.description === undefined || row.description === null) row.description = "";
+    if (!row.author) row.author = "C-Studio user";
+    if (!row.createdAt) row.createdAt = new Date().toISOString();
+
+    PAYLOAD_PARTS.forEach((key, i) => {
+      const part = payload.slice(i * PAYLOAD_CHUNK_SIZE, (i + 1) * PAYLOAD_CHUNK_SIZE);
+      if (!row[key] && part) row[key] = part;
+      else if (row[key] === undefined || row[key] === null) row[key] = "";
+    });
+
+    HEADERS.forEach(header => {
+      if (row[header] === undefined || row[header] === null) row[header] = "";
+    });
+    rows.push(headers.map(header => row[header] === undefined || row[header] === null ? "" : row[header]));
   }
 
-  const migrated = [HEADERS];
-  for (let r = 1; r < oldValues.length; r++) {
-    const oldRow = oldValues[r], obj = {};
-    oldHeaders.forEach((header, i) => obj[header] = oldRow[i]);
-    const oldPayload = readPayload_(obj);
-    const row = {
-      id: obj.id || "",
-      type: obj.type || "",
-      name: obj.name || "",
-      description: obj.description || "",
-      author: obj.author || "",
-      createdAt: obj.createdAt || "",
-      passwordSalt: obj.passwordSalt || "",
-      passwordHash: obj.passwordHash || "",
-      passwordUpdatedAt: obj.passwordUpdatedAt || ""
-    };
-    PAYLOAD_PARTS.forEach((key, i) => row[key] = oldPayload.slice(i * PAYLOAD_CHUNK_SIZE, (i + 1) * PAYLOAD_CHUNK_SIZE));
-    if (HEADERS.slice(0, 6).some(key => row[key] !== "") || oldPayload) migrated.push(HEADERS.map(header => row[header] === undefined ? "" : row[header]));
+  const needsRewrite = oldHeaders.length !== headers.length ||
+    headers.some((header, i) => oldHeaders[i] !== header) ||
+    rows.length !== oldValues.length;
+  if (needsRewrite) {
+    sheet.getRange(1, 1, Math.max(sheet.getLastRow(), rows.length), Math.max(sheet.getLastColumn(), headers.length)).clearContent();
+    sheet.getRange(1, 1, rows.length, headers.length).setValues(rows);
   }
-  sheet.clearContents();
-  sheet.getRange(1, 1, migrated.length, HEADERS.length).setValues(migrated);
   sheet.setFrozenRows(1);
 }
-
 function readPayload_(item) {
   const parts = PAYLOAD_PARTS.map(key => String(item[key] || ""));
   if (parts.some(Boolean)) return parts.join("");
