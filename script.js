@@ -941,20 +941,15 @@ async function publishItem(type,item){
 }
 async function sendExploreManage(id,manageAction,extra={}){
  const endpoint=exploreEndpoint();
- await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"manage",id,manageAction,...extra})});
- let lastError=null;
- for(let attempt=1;attempt<=8;attempt++){
-  await new Promise(resolve=>setTimeout(resolve,850));
-  try{
-   const data=await jsonpList(endpoint);
-   if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");
-   exploreItems=Array.isArray(data.items)?data.items:[];
-   const current=exploreItems.find(x=>String(x.id)===String(id));
-   if(manageAction==="rename"&&current&&current.name===extra.name)return {ok:true};
-   if(manageAction==="delete"&&!current)return {ok:true};
-  }catch(e){lastError=e}
- }
- throw Error("The change was sent but could not be confirmed. "+(lastError?"Last check error: "+lastError.message+". ":"")+"Check the Apps Script deployment and execution log.");
+ const data=await jsonpRequest(endpoint,{action:"manage",id,manageAction,...extra});
+ if(!data||data.ok!==true)throw Error(data?.error||"Google Apps Script did not confirm the change.");
+ const listed=await jsonpList(endpoint);
+ if(!listed||listed.ok===false)throw Error(listed?.error||"The change was accepted, but Explore could not refresh.");
+ exploreItems=Array.isArray(listed.items)?listed.items:[];
+ const current=exploreItems.find(x=>String(x.id)===String(id));
+ if(manageAction==="rename"&&current&&current.name===extra.name)return {ok:true};
+ if(manageAction==="delete"&&!current)return {ok:true};
+ throw Error("Google Sheets confirmed the request, but the listing did not update. Refresh Explore and check the Apps Script execution log.");
 }
 async function manageExploreItem(id){
  const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;
