@@ -16,6 +16,32 @@ function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   try {
     const sheets = setupAndGetSheets_();
+    if (params.action === "verify") {
+      const id = String(params.id || "");
+      const password = String(params.password || "");
+      if (!id || !password) throw new Error("A listing ID and owner password are required.");
+      let found = null;
+      sheets.some(sheet => {
+        const values = sheet.getDataRange().getValues();
+        if (values.length < 2) return false;
+        const headers = values[0].map(String);
+        const idIndex = headers.indexOf("id");
+        const saltIndex = headers.indexOf("passwordSalt");
+        const hashIndex = headers.indexOf("passwordHash");
+        for (let r = 1; r < values.length; r++) {
+          if (String(values[r][idIndex]) === id) {
+            const salt = String(values[r][saltIndex] || "");
+            const storedHash = String(values[r][hashIndex] || "");
+            found = !!salt && !!storedHash && passwordHash_(salt, password) === storedHash;
+            return true;
+          }
+        }
+        return false;
+      });
+      if (found === null) throw new Error("This published item was not found. Refresh Explore and try again.");
+      return output_({ ok: true, valid: found, error: found ? "" : "Incorrect owner password. Enter the exact password used when this item was published." }, params.callback);
+    }
+
     if (params.action !== "list") {
       return output_({
         ok: true,
