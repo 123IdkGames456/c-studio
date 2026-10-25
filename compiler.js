@@ -559,8 +559,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
     const target=valueForInput(n,"target",new Set(),"GameObject"),op=n.values?.operation||"setActive";
     if(op==="destroy")out.push(p+"if ("+target+" != null) Destroy("+target+");");
     else if(op==="instantiate"){
-     if(outputConnected(n.id))out.push(p+(spawnedNames.get(n.id)||("__blueprintSpawned_"+n.id))+" = Instantiate("+target+");");
-     else out.push(p+"Instantiate("+target+");");
+     const posLink=dataLink(n.id,"position"),rotLink=dataLink(n.id,"rotation"),spawnArgs=posLink||rotLink?", "+valueForInput(n,"position",new Set(),"Vector3")+", "+valueForInput(n,"rotation",new Set(),"Quaternion"):"";
+     if(outputConnected(n.id))out.push(p+(spawnedNames.get(n.id)||("__blueprintSpawned_"+n.id))+" = Instantiate("+target+spawnArgs+");");
+     else out.push(p+"Instantiate("+target+spawnArgs+");");
     }else out.push(p+"if ("+target+" != null) "+target+".SetActive("+(n.values?.active==="false"?"false":"true")+");");
    }else if(n.type==="wait"){
     const flag=waitFlagNames.get(n.id)||("__blueprintWaitRunning_"+n.id),method=waitMethodNames.get(n.id)||("__blueprintWait_"+n.id);
