@@ -879,7 +879,7 @@ function saveCurrentToLibrary(forceNew=false,name=null){const project=JSON.parse
 function openLibrary(){renderLibrary();$("libraryPanel").hidden=false}
 function renderLibrary(){const list=$("libraryList"),q=($("librarySearch").value||"").trim().toLowerCase(),all=libraryEntries(),visible=all.filter(e=>(e.name+" "+(e.folder||"")+(e.favorite?" favorite":"")).toLowerCase().includes(q));$("libraryCount").textContent=all.length+" script"+(all.length===1?"":"s");list.innerHTML=visible.length?visible.map(e=>'<article class="library-entry"><div class="library-entry-top"><button class="library-load" data-action="load" data-id="'+esc(e.id)+'"><strong>'+esc(e.name)+'</strong><span>'+esc(e.folder||"My Scripts")+(e.favorite?" · ★ Favorite":"")+'</span></button><button class="library-favorite '+(e.favorite?"active":"")+'" data-action="favorite" data-id="'+esc(e.id)+'">'+(e.favorite?"★":"☆")+'</button></div><div class="library-meta"><span>Size <b>'+formatSize(entrySize(e))+'</b></span><span>Made '+esc(new Date(e.createdAt).toLocaleString())+'</span><span>Updated '+esc(new Date(e.updatedAt).toLocaleString())+'</span></div><div class="library-entry-actions"><button data-action="rename" data-id="'+esc(e.id)+'">Rename</button><button data-action="move" data-id="'+esc(e.id)+'">Move</button><button data-action="export" data-id="'+esc(e.id)+'">Export JSON</button><button data-action="publish" data-id="'+esc(e.id)+'">Publish</button><button class="danger" data-action="delete" data-id="'+esc(e.id)+'">Remove</button></div></article>').join(""):'<div class="library-empty">No saved scripts yet. Press Save or add a JSON file.</div>'}
 
-function exploreEndpoint(){let saved=(localStorage.getItem(EXPLORE_ENDPOINT_KEY)||"").trim();if(!saved||saved==="https://script.google.com/macros/s/AKfycbxBd0xGmrI3A78LASgrNKXy2mzNF8X5y4CIYS8z8-qFj_Pd7Yymdr45D0l-tiv5Qk8W/exec"){saved=EXPLORE_DEFAULT_ENDPOINT;try{localStorage.setItem(EXPLORE_ENDPOINT_KEY,saved)}catch{}}return saved}
+function exploreEndpoint(){let saved=(localStorage.getItem(EXPLORE_ENDPOINT_KEY)||"").trim();if(!saved||saved==="https://script.google.com/macros/s/AKfycbyums-BiInck2eEO7ZxWgDclx5NXufvuIWBXQ8DnYbuRh8ClUzqLf1S6yB3qB1AQpyt/exec"){saved=EXPLORE_DEFAULT_ENDPOINT;try{localStorage.setItem(EXPLORE_ENDPOINT_KEY,saved)}catch{}}return saved}
 let exploreItems=[],activeExploreTab="codes";
 function saveExploreEndpoint(){const value=$("exploreEndpoint").value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec(?:\?.*)?$/.test(value)){alert("Paste a deployed Google Apps Script web app URL ending in /exec.");return}localStorage.setItem(EXPLORE_ENDPOINT_KEY,value);$("exploreConnectionStatus").textContent="URL saved. Loading published items…";refreshExplore()}
 function openExplore(){ $("libraryPanel").hidden=true;$("explorePanel").hidden=false;$("exploreEndpoint").value=exploreEndpoint();renderExplore();refreshExplore()}
@@ -887,7 +887,11 @@ function setExploreTab(tab){activeExploreTab=tab;const custom=tab==="custom";$("
 function jsonpList(url){return new Promise((resolve,reject)=>{const cb="cstudioExploreCallback_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),script=document.createElement("script"),timer=setTimeout(()=>{cleanup();reject(Error("Timed out contacting Explore."))},18000);function cleanup(){clearTimeout(timer);delete window[cb];script.remove()}window[cb]=data=>{cleanup();resolve(data)};script.onerror=()=>{cleanup();reject(Error("Could not reach the Apps Script endpoint. Check deployment access and URL."))};script.src=url+(url.includes("?")?"&":"?")+"action=list&callback="+cb;document.body.appendChild(script)})}
 async function refreshExplore(){const endpoint=exploreEndpoint();$("exploreConnectionStatus").textContent="Loading published items…";try{const data=await jsonpList(endpoint);if(!data||data.ok===false)throw Error(data?.error||"Explore returned an error.");exploreItems=Array.isArray(data.items)?data.items:[];$("exploreConnectionStatus").textContent="Connected · "+exploreItems.length+" published item"+(exploreItems.length===1?"":"s");renderExplore()}catch(e){$("exploreConnectionStatus").textContent=e.message+" If this is a new deployment, check that access is set to anyone with the link."}}
 function renderExplore(){const q1=($("exploreCodesSearch")?.value||"").trim().toLowerCase(),q2=($("exploreCustomSearch")?.value||"").trim().toLowerCase(),codes=exploreItems.filter(x=>x.type==="code"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q1)),blocks=exploreItems.filter(x=>x.type==="custom"&&(String(x.name||"")+" "+String(x.description||"")+" "+String(x.author||"")).toLowerCase().includes(q2));$("exploreCodesCount").textContent=codes.length+" published code"+(codes.length===1?"":"s");$("exploreCustomCount").textContent=blocks.length+" published custom block"+(blocks.length===1?"":"s");const card=x=>'<article class="library-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>'+esc(x.name||"Untitled")+'</strong><span>'+esc(x.description||"Community shared item")+'</span></div><span class="server-badge">'+(x.type==="custom"?"CUSTOM BLOCK":"CODE")+'</span></div><div class="library-meta"><span>By <b>'+esc(x.author||"Community member")+'</b></span><span>Published '+esc(x.createdAt?new Date(x.createdAt).toLocaleDateString():"date unknown")+'</span></div><div class="library-entry-actions"><button class="primary" data-explore-action="install" data-id="'+esc(x.id)+'">Install</button><button data-explore-action="edit" data-id="'+esc(x.id)+'">Edit</button></div></article>';$("exploreCodesList").innerHTML=codes.length?codes.map(card).join(""):'<div class="library-empty">No published codes found.</div>';$("exploreCustomList").innerHTML=blocks.length?blocks.map(card).join(""):'<div class="library-empty">No published custom blocks found.</div>'}
+function closeExploreMenus(){["libraryPanel","explorePanel"].forEach(id=>{const el=$(id);if(el)el.hidden=true});}
+function showExploreProgress(title,detail,percent){const panel=$("loadProgress");panel.hidden=false;$("loadProgressTitle").textContent=title;$("loadProgressDetail").textContent=detail;$("loadProgressBar").style.width=Math.max(0,Math.min(100,percent))+"%";$("loadProgressStages").textContent="";$("loadProgressPercent").textContent=Math.max(0,Math.min(100,percent))+"%";}
+function finishExploreProgress(){const panel=$("loadProgress");panel.hidden=true;closeExploreMenus();$("modal").hidden=true;}
 function openExploreModal(title,body,confirmText="Save"){
+ closeExploreMenus();
  return new Promise(resolve=>{
   const modal=$("modal"),confirmButton=$("modalConfirm"),cancelButton=$("modalCancel"),closeButton=$("modalClose");
   $("modalTitle").textContent=title;$("modalBody").innerHTML=body;confirmButton.textContent=confirmText;confirmButton.hidden=false;cancelButton.textContent="Cancel";modal.hidden=false;
@@ -897,21 +901,51 @@ function openExploreModal(title,body,confirmText="Save"){
  });
 }
 async function publishItem(type,item){
- const endpoint=exploreEndpoint();if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);$("exploreConnectionStatus").textContent=message;alert(message);return}
- const kind=type==="code"?"code":"custom",label=kind==="code"?"code":"custom block";$("explorePanel").hidden=false;
- const dialog=await openExploreModal("Publish "+(kind==="code"?"Code":"Custom Block"),'<p class="subtle">Choose the public name and owner password. You will need this password to rename or remove the listing.</p><div class="form-row"><label for="exploreModalFirstInput">Public name</label><input id="exploreModalFirstInput" maxlength="120" value="'+esc(item.name||"Untitled")+'" placeholder="Name shown in Explore"></div><div class="form-row"><label for="explorePublishAuthor">Publisher name</label><input id="explorePublishAuthor" maxlength="80" value="C-Studio user" placeholder="Name shown publicly"></div><div class="form-row"><label for="explorePublishPassword">Owner password (minimum 6 characters)</label><input id="explorePublishPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Choose a password"></div><p class="subtle">Keep the password safe; it cannot be recovered. Removing a listing stops new installs, but existing local copies remain.</p>',"Publish");
- if(!dialog)return;const name=($("exploreModalFirstInput")?.value||"").trim(),author=($("explorePublishAuthor")?.value||"C-Studio user").trim()||"C-Studio user",password=$("explorePublishPassword")?.value||"";
- if(!name){alert("Enter a public name.");return}if(password.length<6){alert("Choose a password with at least 6 characters.");return}
- const connection=$("exploreConnectionStatus"),button=document.activeElement,oldButtonText=button&&button.tagName==="BUTTON"?button.textContent:"",previousIds=new Set(exploreItems.map(x=>String(x.id)));
- if(button&&button.tagName==="BUTTON"){button.disabled=true;button.textContent="Publishing…"}connection.textContent="Step 1/4 · Preparing "+label+"…";status("Publishing "+label+"…");
+ closeExploreMenus();
+ const endpoint=exploreEndpoint();
+ if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);alert(message);return}
+ const kind=type==="code"?"code":"custom",label=kind==="code"?"code":"custom block";
+ const dialog=await openExploreModal("Publish "+(kind==="code"?"Code":"Custom Block"),'<p class="subtle">Choose the public name and owner password. You will need this password to rename or remove the listing.</p><div class="form-row"><label for="exploreModalFirstInput">Public name</label><input id="exploreModalFirstInput" maxlength="120" value="'+esc(item.name||"Untitled")+'" placeholder="Name shown in Explore"></div><div class="form-row"><label for="explorePublishAuthor">Publisher name</label><input id="explorePublishAuthor" maxlength="80" value="C-Studio user" placeholder="Name shown publicly"></div><div class="form-row"><label for="explorePublishPassword">Owner password (minimum 6 characters)</label><input id="explorePublishPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Choose a password"></div><p class="subtle">Your password is stored as a salted hash in the sheet, not as readable text. Anyone who already installed an item keeps their local copy if you later remove the listing.</p>',"Publish");
+ if(!dialog)return;
+ const name=($("exploreModalFirstInput")?.value||"").trim(),author=($("explorePublishAuthor")?.value||"C-Studio user").trim()||"C-Studio user",password=$("explorePublishPassword")?.value||"";
+ if(!name){alert("Enter a public name.");return}
+ if(password.length<6){alert("Choose a password with at least 6 characters.");return}
+ const previousIds=new Set(exploreItems.map(x=>String(x.id)));
+ $("modal").hidden=true;closeExploreMenus();
+ showExploreProgress("Publishing "+label,"Step 1/4 · Preparing your item…",8);
+ status("Publishing "+label+"…");
  try{
-  connection.textContent="Step 2/4 · Sending "+label+" and securing the owner password…";
+  showExploreProgress("Publishing "+label,"Step 2/4 · Sending the item and password securely…",25);
   await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,password,payload:item.payload})});
-  connection.textContent="Step 3/4 · Waiting for Google Sheets to confirm the listing…";let lastError=null,published=null;
-  for(let attempt=1;attempt<=6;attempt++){await new Promise(resolve=>setTimeout(resolve,1500));try{const data=await jsonpList(endpoint);if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");const items=Array.isArray(data.items)?data.items:[];published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&String(x.author||"").trim()===author)||null;exploreItems=items;renderExplore();if(published)break;connection.textContent="Step 3/4 · Checking the sheet… attempt "+attempt+" of 6."}catch(e){lastError=e;connection.textContent="Step 3/4 · Verification attempt "+attempt+" failed: "+(e?.message||String(e))}}
-  if(published){connection.textContent="Step 4/4 · Complete! “"+name+"” is published and visible in Explore.";status("Published successfully: "+name)}else{const message="Publish failed or could not be confirmed. "+(lastError?lastError.message+" ":"")+"Check the Apps Script deployment, permissions, and execution log, then refresh Explore.";connection.textContent=message;status(message);alert(message)}
- }catch(e){const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and Apps Script deployment.";connection.textContent=message;status(message);alert(message)}
- finally{if(button&&button.tagName==="BUTTON"){button.disabled=false;button.textContent=oldButtonText}}
+  showExploreProgress("Publishing "+label,"Step 3/4 · Waiting for Google Sheets to confirm…",45);
+  let lastError=null,published=null;
+  for(let attempt=1;attempt<=8;attempt++){
+   showExploreProgress("Publishing "+label,"Checking Google Sheets… attempt "+attempt+" of 8.",45+attempt*6);
+   await new Promise(resolve=>setTimeout(resolve,1250));
+   try{
+    const data=await jsonpList(endpoint);
+    if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");
+    const items=Array.isArray(data.items)?data.items:[];
+    published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&String(x.author||"").trim()===author)||null;
+    exploreItems=items;
+    if(published)break;
+   }catch(e){lastError=e}
+  }
+  if(published){
+   showExploreProgress("Publishing complete","Published “"+name+"” successfully.",100);
+   status("Published successfully: "+name);
+   await new Promise(resolve=>setTimeout(resolve,900));
+  }else{
+   const message="Publish failed or could not be confirmed. "+(lastError?"Last check error: "+lastError.message+". ":"")+"Check the Apps Script deployment, access permissions, and execution log.";
+   showExploreProgress("Publishing failed",message,100);
+   status(message);alert(message);
+  }
+ }catch(e){
+  const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Apps Script deployment.";
+  showExploreProgress("Publishing failed",message,100);status(message);alert(message);
+ }finally{
+  finishExploreProgress();
+ }
 }
 async function manageExploreItem(id){
  const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;
