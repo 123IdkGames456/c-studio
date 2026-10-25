@@ -257,3 +257,40 @@ button:active{transform:translateY(1px)}
 .publish-username-field input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #394153;border-radius:9px;background:#10131a;color:var(--text);outline:none}
 .publish-username-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px #8aa3ff22}
 .publish-username-field small{color:var(--muted);font-size:10px;line-height:1.5}
+
+/* Node inspector layout refresh */
+.inspector{min-width:0;padding:15px 12px 22px;scrollbar-width:thin;scrollbar-color:#3b455b transparent}
+.inspector>.panel-title{position:sticky;top:-13px;z-index:2;padding:10px 2px 9px;margin:0 0 12px;background:var(--panel);border-bottom:1px solid #ffffff0d}
+.node-inspector{min-width:0;display:flex;flex-direction:column;gap:10px}
+.node-inspector>.subtle:first-child{padding:10px 11px;border:1px solid #30394b;border-radius:9px;background:linear-gradient(135deg,#222a3a,#1a1e28);color:#aebbd3;line-height:1.5}
+.node-inspector>label:not(.node-field){display:block;margin:2px 0 -5px;padding:0 2px;color:#b9c4d8;font-size:10px;font-weight:750;letter-spacing:.35px;line-height:1.35;overflow-wrap:anywhere}
+.node-inspector>input,.node-inspector>select{display:block;width:100%;min-width:0;max-width:100%;height:auto;min-height:36px;margin:0;padding:9px 10px;border:1px solid #343d50;border-radius:8px;background:#10141d;color:#f1f4fb;font-size:12px;line-height:1.35;outline:none}
+.node-inspector>input:hover,.node-inspector>select:hover{border-color:#596987}
+.node-inspector>input:focus,.node-inspector>select:focus{border-color:#8aa3ff;box-shadow:0 0 0 3px #8aa3ff1c}
+.node-inspector select{white-space:normal;text-overflow:ellipsis}
+.node-inspector option{background:#171b25;color:#f1f4fb}
+.node-inspector .node-field{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;margin:0;padding:10px 11px;border:1px solid #303849;border-radius:9px;background:#1c212c}
+.node-inspector .node-field>span{flex:1;min-width:0;color:#c6cede;font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+.node-inspector .node-field input[type=checkbox]{flex:none;width:17px;height:17px;min-width:17px;margin:0;accent-color:#8aa3ff;cursor:pointer}
+.node-inspector .connected-value{align-items:flex-start;flex-direction:column;gap:7px}
+.node-inspector .connected-field-value{display:flex;align-items:center;gap:8px;min-width:0;width:100%;padding:9px 10px;border:1px solid #43527a;border-radius:8px;background:#202b43;color:#cbd7ff;font-size:11px;overflow-wrap:anywhere}
+.node-inspector .connected-lock{font-size:10px;color:#aebfff;font-weight:800;letter-spacing:.3px}
+.node-inspector .connection-indicator{width:7px;height:7px;flex:none;border-radius:50%;background:#8aa3ff;box-shadow:0 0 0 3px #8aa3ff20}
+.node-inspector .inspector-section{margin-top:5px;padding:12px 11px 9px;border:1px solid #343d50;border-radius:9px 9px 0 0;background:#242a38;color:#dce4f5;font-size:11px;letter-spacing:.4px}
+.node-inspector .inspector-section+.node-field{border-top-left-radius:0;border-top-right-radius:0}
+.node-inspector .component-toggle{margin-top:-9px;border-radius:0;border-top:0}
+.node-inspector .component-toggle:last-of-type{border-radius:0 0 9px 9px}
+.node-inspector .literal-list-editor{min-width:0;padding:11px;border:1px solid #343d50;border-radius:10px;background:#1c212c}
+.node-inspector .literal-list-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.node-inspector .literal-list-heading strong{font-size:11px;color:#dbe3f4}
+.node-inspector .literal-list-heading button{padding:6px 8px;font-size:10px}
+.node-inspector .literal-list-item{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:6px;align-items:center;padding:8px 0;border-top:1px solid #ffffff0d}
+.node-inspector .literal-list-item label{grid-column:1/-1;margin:0;color:#9faac0;font-size:10px}
+.node-inspector .literal-list-item input{width:100%;min-width:0;height:34px;padding:7px 8px;border:1px solid #343d50;border-radius:7px;background:#10141d;color:#f1f4fb}
+.node-inspector .literal-list-item input[type=checkbox]{width:17px;height:17px;accent-color:#8aa3ff}
+.node-inspector .literal-list-item button{width:30px;height:30px;padding:0;border-color:#583b48;background:#30212a;color:#ff9aa8;font-size:17px}
+.node-inspector #deleteNode{min-height:37px;margin-top:4px;border-color:#633b49;background:#2b1d26;color:#ff9eaa;font-weight:750}
+.node-inspector #deleteNode:hover{background:#48232f;border-color:#a85c70}
+.node-inspector .subtle{overflow-wrap:anywhere}
+@media(max-width:1050px){.inspector{display:block;position:fixed;z-index:8;right:10px;top:105px;bottom:12px;width:min(310px,calc(100vw - 24px));border:1px solid #3a4356;border-radius:12px;box-shadow:0 18px 55px #0009;transform:translateX(calc(100% + 20px));transition:transform .18s ease}.inspector.inspector-open{transform:translateX(0)}}
+@media(max-width:650px){.inspector{top:100px;bottom:8px;width:min(300px,calc(100vw - 16px));padding:12px 10px}}
