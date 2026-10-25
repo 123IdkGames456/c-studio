@@ -40,9 +40,9 @@
     const q = ($("exploreSearch").value || "").trim().toLowerCase();
     const visible = serverEntries.filter(e => (String(e.name || "") + " " + String(e.type || "") + " " + String(e.username || "") + " " + parsePayload(e)).toLowerCase().includes(q));
     $("exploreList").innerHTML = visible.length ? visible.map(e => {
-      const payload = parsePayload(e);
       const isCode = String(e.type || "code").toLowerCase() === "code";
-      return '<article class="library-entry server-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>' + esc(e.name || "Untitled server script") + '</strong><span>' + (isCode ? "C# CODE" : "NODE PROJECT") + (e.createdAt ? " · " + esc(e.createdAt) : "") + '</span><span class="server-publisher">Published by ' + esc(e.publisherName || e.publishedBy || "Unknown") + '</span></div><span class="server-badge">SUPABASE</span></div><details class="server-preview"><summary>Preview ' + (isCode ? "code" : "project JSON") + '</summary><pre>' + esc(payload) + '</pre></details><div class="library-entry-actions"><button data-server-action="copy" data-index="' + serverEntries.indexOf(e) + '">Copy</button><button data-server-action="download" data-index="' + serverEntries.indexOf(e) + '">Download</button></div></article>';
+      const validProject = e.payload && typeof e.payload === "object" && Array.isArray(e.payload.nodes);
+      return '<article class="library-entry server-entry"><div class="library-entry-top"><div class="server-entry-title"><strong>' + esc(e.name || "Untitled server script") + '</strong><span>' + (isCode ? "C# CODE" : "BLUEPRINT PROJECT") + (e.createdAt ? " · " + esc(e.createdAt) : "") + '</span><span class="server-publisher">Published by ' + esc(e.publisherName || e.publishedBy || "Unknown") + '</span></div><span class="server-badge">COMMUNITY</span></div><div class="library-entry-actions"><button data-server-action="load" data-index="' + serverEntries.indexOf(e) + '" ' + (validProject ? "" : "disabled") + '>Load into Canvas</button></div>' + (validProject ? "" : '<div class="library-empty">This entry is not a saved Blueprint project and cannot be loaded into the canvas.</div>') + '</article>';
     }).join("") : '<div class="library-empty">' + (serverEntries.length ? "No server scripts match your search." : "No community scripts have been published yet.") + "</div>";
     $("exploreStatus").textContent = serverEntries.length + " community script" + (serverEntries.length === 1 ? "" : "s") + " loaded. Showing " + visible.length + ".";
   }
@@ -219,6 +219,16 @@
     if (!button) return;
     const entry = serverEntries[Number(button.dataset.index)];
     if (!entry) return;
+    if (button.dataset.serverAction === "load") {
+      if (!entry.payload || typeof entry.payload !== "object" || !Array.isArray(entry.payload.nodes)) {
+        $("exploreStatus").textContent = "This entry does not contain a loadable Blueprint project.";
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "Loading…";
+      window.dispatchEvent(new CustomEvent("cstudio:load-server-script", { detail: { entry } }));
+      return;
+    }
     const payload = parsePayload(entry);
     const filename = String(entry.name || "server-script").replace(/[^a-z0-9_-]+/gi, "_") || "server-script";
     if (button.dataset.serverAction === "copy") {
