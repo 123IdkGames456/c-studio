@@ -250,3 +250,10 @@ button:active{transform:translateY(1px)}
 .publish-spinner{width:24px;height:24px;flex:none;border:3px solid #424b60;border-top-color:var(--blue);border-radius:50%;animation:publish-spin .75s linear infinite}
 @keyframes publish-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.publish-spinner{animation:none}}
+
+.publish-username-field{display:flex;flex-direction:column;gap:7px;margin:0 0 14px}
+.publish-username-field[hidden]{display:none}
+.publish-username-field label{color:#d5def0;font-size:12px;font-weight:800}
+.publish-username-field input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #394153;border-radius:9px;background:#10131a;color:var(--text);outline:none}
+.publish-username-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px #8aa3ff22}
+.publish-username-field small{color:var(--muted);font-size:10px;line-height:1.5}
