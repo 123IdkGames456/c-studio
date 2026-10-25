@@ -1,5 +1,8 @@
 window.BlueprintBlocks = (() => {
 const defs=[
+{id:"devicefps",name:"Device FPS",category:"Device",color:"#62c9c0",kind:"value",desc:"Reads the current rendered frame rate using the unscaled frame delta time.",aliases:["fps","frames per second","frame rate","current fps"],valueOut:"float"},
+{id:"devicelocaltime",name:"Device Local Time",category:"Device",color:"#62c9c0",kind:"value",desc:"Reads the device's local system time as HH:mm:ss.",aliases:["local time","device time","current local time","clock"],valueOut:"string"},
+{id:"deviceutctime",name:"Device Global Time (UTC)",category:"Device",color:"#62c9c0",kind:"value",desc:"Reads the current UTC time as HH:mm:ss. UTC is the global reference time.",aliases:["utc","global time","utc time","world time","greenwich time"],valueOut:"string"},
 {id:"functionstart",name:"Function Entry",category:"Functions",color:"#bd9aff",kind:"flow",desc:"Defines a reusable C# method. Connect Then to the function body; call it with Call Function.",aliases:["function","method","function entry","create function"],flowOut:["Then"],fields:[{id:"name",label:"Method name",type:"text",default:"MyFunction"}]},
 {id:"callfunction",name:"Call Function",category:"Functions",color:"#bd9aff",kind:"flow",desc:"Calls a Function Entry node as a real C# method.",aliases:["call method","run function","execute function"],flowIn:["Exec"],flowOut:["Then"],fields:[{id:"functionId",label:"Function",type:"function"}]},
 {id:"start",name:"On Start",category:"Events",color:"#e6b765",kind:"event",desc:"Runs once when this component starts.",aliases:["begin","start","awake","on start","when game starts"],flowOut:["Then"]},
