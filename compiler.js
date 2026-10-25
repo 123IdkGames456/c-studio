@@ -104,7 +104,7 @@ function expandCustomGraph(inputNodes,inputLinks,inputVars,customBlocks){
    if(!outer){
     sourceId=prefix+"default_"+idPart(port.id);
     sourcePin="value";
-    cloned.push({id:sourceId,type:"literal",x:(clonedInput?.x||0)-260,y:(clonedInput?.y||0)+cloned.length*4,values:{type:port.type||"int",value:port.default??((port.type||"int")==="bool"?"false":(port.type||"int")==="string"?"":/^List<|\[\]$/.test(port.type||"")?"[]":["Vector2","Vector3","Vector4"].includes(port.type)?port.type+".zero":port.type==="Quaternion"?"Quaternion.identity":port.type==="Color"?"Color.white":port.type==="Color32"?"new Color32(255,255,255,255)":["int","float","double","long","short","byte","decimal"].includes(port.type)?"0":"null")}});
+    cloned.push({id:sourceId,type:"literal",x:(clonedInput?.x||0)-260,y:(clonedInput?.y||0)+cloned.length*4,values:{type:port.type||"int",value:port.default??((port.type||"int")==="bool"?"false":(port.type||"int")==="string"?"":String(port.type||"").startsWith("List<")?"[]":String(port.type||"").endsWith("[]")?"Array.Empty<"+String(port.type).slice(0,-2)+">()":["Vector2","Vector3","Vector4","Vector2Int","Vector3Int"].includes(port.type)?port.type+".zero":port.type==="Quaternion"?"Quaternion.identity":port.type==="Color"?"Color.white":port.type==="Color32"?"new Color32(255,255,255,255)":["int","float","double","long","short","byte","decimal"].includes(port.type)?"0":"null")}});
    }
    for(const link of uses){link.from=sourceId;link.fromPin=sourcePin}
   }
