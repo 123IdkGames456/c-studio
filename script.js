@@ -7,7 +7,7 @@ let customEditingId=null,customParentState=null,lastCustomNodeClick={id:null,tim
 let nodes = [], links = [], variables = [], nextNode = 1, nextVariable = 1;
 let selectedNode = null, pendingPin = null, activeCategory = "All", codeVisible = true, activeView = "graph";
 function saveCustomBlocks(){try{localStorage.setItem(CUSTOM_BLOCKS_KEY,JSON.stringify(customBlocks))}catch(e){status("Custom block save failed: browser storage is full")}}
-function mergeCustomBlocks(incoming){if(!Array.isArray(incoming))return;const merged=new Map(customBlocks.map(b=>[String(b.id),b]));incoming.forEach(b=>{if(b&&b.id)merged.set(String(b.id),b)});customBlocks=[...merged.values()];saveCustomBlocks();syncCustomDefs()}
+function mergeCustomBlocks(incoming,preferExisting=false){if(!Array.isArray(incoming))return;const merged=new Map(customBlocks.map(b=>[String(b.id),b]));incoming.forEach(b=>{if(b&&b.id&&(!preferExisting||!merged.has(String(b.id))))merged.set(String(b.id),b)});customBlocks=[...merged.values()];saveCustomBlocks();syncCustomDefs()}
 function customPortList(boundaryType,def=customBlocks.find(x=>x.id===customEditingId)){return def?.nodes?.find(n=>n.type===boundaryType)?.values?.ports||[]}
 function syncCustomDefs(){
  for(let i=defs.length-1;i>=0;i--)if(String(defs[i].id).startsWith("customblock_"))defs.splice(i,1);
@@ -795,7 +795,7 @@ $("miniMapToggle").addEventListener("click",()=>{
 });
 
 function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable,customBlocks:JSON.parse(JSON.stringify(customBlocks))}}
-function loadState(s){if(!s||!Array.isArray(s.nodes))throw new Error("This JSON is not a Blueprint project.");if(Array.isArray(s.customBlocks))mergeCustomBlocks(s.customBlocks);variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
+function loadState(s){if(!s||!Array.isArray(s.nodes))throw new Error("This JSON is not a Blueprint project.");if(Array.isArray(s.customBlocks))mergeCustomBlocks(s.customBlocks,true);variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
 
 const templates=[
  {id:"rotate",name:"Rotating Cube",description:"Rotate the object smoothly around its Y axis.",build(){
