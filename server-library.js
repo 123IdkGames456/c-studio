@@ -66,36 +66,16 @@
   let pendingPublishEntry = null;
   let publishRequestId = null;
   let publishTimeout = null;
-  let signedInToken = sessionStorage.getItem("cstudioGoogleIdToken") || "";
-  let signedInUser = null;
-  try { signedInUser = JSON.parse(sessionStorage.getItem("cstudioGoogleUser") || "null"); } catch {}
   function showPublishModal(entry) {
     pendingPublishEntry = entry;
     $("publishLoading").hidden = true;
     $("publishStatus").className = "publish-status";
-    $("publishStatus").textContent = signedInToken
-      ? "Choose a username to show in Explore, then publish."
-      : "Choose a username, then sign in with Google to publish.";
+    $("publishStatus").textContent = "Choose a username to show in Explore, then publish.";
     $("publishSubtitle").textContent = "Publishing: " + String(entry.name || entry.project.projectName || "Untitled script");
     $("publishModal").hidden = false;
     $("publishUsernameField").hidden = false;
     $("publishUsername").value = "";
-    $("publishSubmit").hidden = !signedInToken;
-    $("googleSignInButton").hidden = !!signedInToken;
-    $("googleSignInButton").innerHTML = "";
-    if (!signedInToken && GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
-      $("publishStatus").textContent = "Google Sign-In needs setup: add your Google OAuth Client ID to server-library.js and Code.gs.";
-    } else if (!signedInToken && window.google && google.accounts && google.accounts.id) {
-      google.accounts.id.renderButton($("googleSignInButton"), {
-        theme: "outline",
-        size: "large",
-        text: "signin_with",
-        shape: "rectangular",
-        width: 260
-      });
-    } else if (!signedInToken) {
-      $("publishStatus").textContent = "Google Sign-In is loading. Close this window and try again in a moment.";
-    }
+    $("publishSubmit").hidden = false;
   }
   function closePublishModal() {
     if (publishRequestId) return;
@@ -106,7 +86,6 @@
     clearTimeout(publishTimeout);
     publishRequestId = null;
     $("publishLoading").hidden = true;
-    $("googleSignInButton").hidden = false;
     $("publishCancel").disabled = false;
     $("publishClose").disabled = false;
     $("publishStatus").className = "publish-status error";
@@ -131,7 +110,7 @@
   }
 
   function submitPublish() {
-    if (!pendingPublishEntry || publishRequestId || !idToken) return;
+    if (!pendingPublishEntry || publishRequestId) return;
     const username = String($("publishUsername").value || "").trim().replace(/\s+/g, " ");
     if (!username || username.length < 2 || username.length > 24) {
       $("publishStatus").className = "publish-status error";
@@ -150,7 +129,6 @@
     };
     publishRequestId = "cstudio-" + Date.now() + "-" + Math.random().toString(36).slice(2);
     const requestId = publishRequestId;
-    $("googleSignInButton").hidden = true;
     $("publishLoading").hidden = false;
     $("publishStatus").className = "publish-status";
     $("publishStatus").textContent = "";
@@ -169,7 +147,7 @@
     form.action = SERVER_LIBRARY_URL;
     form.target = frame.name;
     form.hidden = true;
-    const fields = { action: "save", entry: JSON.stringify(serverEntry), idToken, username, deviceId: serverEntry.deviceId, requestId };
+    const fields = { action: "save", entry: JSON.stringify(serverEntry), username, deviceId: serverEntry.deviceId, requestId };
     Object.entries(fields).forEach(([name, value]) => {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -193,92 +171,12 @@
     }, 18000);
   }
 
-  function decodeGoogleUser(token) {
-    try {
-      const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-      const claims = JSON.parse(decodeURIComponent(escape(atob(part))));
-      return { name: claims.name || claims.email || "Google user", email: claims.email || "" };
-    } catch {
-      return { name: "Google user", email: "" };
-    }
-  }
-
-  function updateAccountButton() {
-    const button = $("accountButton");
-    if (!button) return;
-    button.textContent = signedInToken ? "Log out" : "Log in";
-    button.title = signedInToken && signedInUser ? "Signed in as " + signedInUser.email : "Sign in with Google";
-  }
-
-  function openAccountLogin() {
-    pendingPublishEntry = null;
-    $("publishLoading").hidden = true;
-    $("publishSubtitle").textContent = "Sign in to C-Studio";
-    $("publishStatus").className = "publish-status";
-    $("publishStatus").textContent = "Sign in with Google. Your Google account verifies your identity; publishing a script also requires a username.";
-    $("publishUsernameField").hidden = true;
-    $("publishSubmit").hidden = true;
-    $("publishModal").hidden = false;
-    $("googleSignInButton").hidden = false;
-    $("googleSignInButton").innerHTML = "";
-    if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
-      $("publishStatus").textContent = "Google Sign-In needs setup: add your Google OAuth Client ID to server-library.js and Code.gs.";
-    } else if (window.google && google.accounts && google.accounts.id) {
-      google.accounts.id.renderButton($("googleSignInButton"), {
-        theme: "outline", size: "large", text: "signin_with", shape: "rectangular", width: 260
-      });
-    } else {
-      $("publishStatus").textContent = "Google Sign-In is loading. Close this window and try again in a moment.";
-    }
-  }
-
-  function handleGoogleCredential(response) {
-    if (!response || !response.credential) {
-      publishFailure("Google Sign-In did not return a credential. Please try again.");
-      return;
-    }
-    signedInToken = response.credential;
-    signedInUser = decodeGoogleUser(signedInToken);
-    try {
-      sessionStorage.setItem("cstudioGoogleIdToken", signedInToken);
-      sessionStorage.setItem("cstudioGoogleUser", JSON.stringify(signedInUser));
-    } catch {}
-    updateAccountButton();
-    if (pendingPublishEntry) {
-      submitPublish(signedInToken);
-    } else {
-      $("publishModal").hidden = true;
-    }
-  }
-
-  const GOOGLE_CLIENT_ID = "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE";
-  function initializeGoogleSignIn() {
-    if (!window.google || !google.accounts || !google.accounts.id) return;
-    if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") return;
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredential,
-      auto_select: false
-    });
-  }
-  window.addEventListener("load", () => { initializeGoogleSignIn(); updateAccountButton(); });
-  $("accountButton")?.addEventListener("click", () => {
-    if (signedInToken) {
-      signedInToken = "";
-      signedInUser = null;
-      try { sessionStorage.removeItem("cstudioGoogleIdToken"); sessionStorage.removeItem("cstudioGoogleUser"); } catch {}
-      if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
-      updateAccountButton();
-    } else {
-      openAccountLogin();
-    }
-  });
   window.addEventListener("cstudio:publish-script", event => {
     const local = event.detail?.entry;
     if (!local?.project) return;
     showPublishModal(local);
   });
-  $("publishSubmit")?.addEventListener("click", () => submitPublish(signedInToken));
+  $("publishSubmit")?.addEventListener("click", () => submitPublish());
   $("publishCancel")?.addEventListener("click", closePublishModal);
   $("publishClose")?.addEventListener("click", closePublishModal);
   $("publishModal")?.addEventListener("click", event => {
