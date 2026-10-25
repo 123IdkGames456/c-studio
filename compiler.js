@@ -595,11 +595,11 @@ function compile(inputNodes,inputLinks,inputVars,className){
   else if(v.access==="private-inspector")classFields.push("    [SerializeField] private "+type+" "+name+" = "+initial+";");
   else classFields.push("    private "+type+" "+name+" = "+initial+";");
  }
- const eventKinds=[["start","Start"],["update","Update"],["fixed","FixedUpdate"]];
- for(const [type,method] of eventKinds){
+ const eventKinds=[["awake","Awake",""],["start","Start",""],["onenable","OnEnable",""],["update","Update",""],["fixed","FixedUpdate",""],["ondisable","OnDisable",""],["ondestroy","OnDestroy",""],["triggerenter","OnTriggerEnter","Collider other"],["triggerstay","OnTriggerStay","Collider other"],["triggerexit","OnTriggerExit","Collider other"],["collisionenter","OnCollisionEnter","Collision collision"],["collisionstay","OnCollisionStay","Collision collision"],["collisionexit","OnCollisionExit","Collision collision"]];
+ for(const [type,method,signature] of eventKinds){
   const events=nodes.filter(n=>n.type===type);
   if(!events.length)continue;
-  methods.push("    private void "+method+"()","    {");
+  methods.push("    private void "+method+"("+signature+")","    {");
   for(const ev of events){
    const next=connected(ev.id,"Then");
    if(next)methods.push(...emitFlow(next,2,new Set([ev.id])));
