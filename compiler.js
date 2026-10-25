@@ -459,14 +459,29 @@ function compile(inputNodes,inputLinks,inputVars,className){
    visited.add(current);
    const n=findNode(current);if(!n)break;
    const p="    ".repeat(indent);
-   if(["start","update","fixed","comment"].includes(n.type)){}
+   if(["start","update","fixed","awake","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","comment"].includes(n.type)){}
+   else if(n.type==="breakloop"){out.push(p+"break;");break}
+   else if(n.type==="continueloop"){out.push(p+"continue;");break}
+   else if(n.type==="forloop"){
+    const ix="__blueprintLoopIndex_"+n.id,a=cleanNumber(n.values?.start??"0","int"),b=cleanNumber(n.values?.end??"5","int");out.push(p+"for (int "+ix+" = "+a+"; "+ix+" < "+b+"; "+ix+"++)",p+"{");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+1,new Set(visited)));out.push(p+"}");current=connected(n.id,"Completed");continue;
+   }else if(n.type==="foreach"){
+    const item=safeIdentifier(n.values?.itemName||"item","item",new Set()),t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",new Set(),"List<"+t+">");out.push(p+"if ("+l+" != null)",p+"{",p+"    foreach ("+t+" "+item+" in "+l+")",p+"    {");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+2,new Set(visited)));out.push(p+"    }",p+"}");current=connected(n.id,"Completed");continue;
+   }else if(n.type==="whileloop"){
+    const c=valueForInput(n,"condition",new Set(),"bool");out.push(p+"while ("+c+")",p+"{");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+1,new Set(visited)));out.push(p+"}");current=connected(n.id,"Completed");continue;
+   }
    else if(n.type==="functionstart"){break;}
    else if(n.type==="callfunction"){
     const fn=nodes.find(x=>x.type==="functionstart"&&String(x.id)===String(n.values?.functionId));
     if(!fn)report("Choose a valid Function Entry node in Call Function.");
     else out.push(p+safeIdentifier(fn.values?.name||"MyFunction","MyFunction",new Set())+"_"+fn.id+"();");
    }
-   else if(n.type==="setvar"){
+   else if(n.type==="addforce"||n.type==="addtorque"){
+    const b=valueForInput(n,"body",new Set(),"Rigidbody"),v=valueForInput(n,n.type==="addforce"?"force":"torque",new Set(),"Vector3"),m=n.type==="addforce"?"AddForce":"AddTorque",fm=n.values?.forceMode||"Force";out.push(p+"if ("+b+" != null) "+b+"."+m+"("+v+", ForceMode."+fm+");");
+   }else if(n.type==="setvelocity"){const b=valueForInput(n,"body",new Set(),"Rigidbody"),v=valueForInput(n,"velocity",new Set(),"Vector3");out.push(p+"if ("+b+" != null) "+b+".velocity = "+v+";");
+   }else if(n.type==="listadd"||n.type==="listremove"||n.type==="listclear"){
+    const t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",new Set(),"List<"+t+">");if(n.type==="listadd")out.push(p+"if ("+l+" != null) "+l+".Add("+valueForInput(n,"item",new Set(),t)+");");else if(n.type==="listremove")out.push(p+"if ("+l+" != null) "+l+".Remove("+valueForInput(n,"item",new Set(),t)+");");else out.push(p+"if ("+l+" != null) "+l+".Clear();");
+   }else if(n.type==="setparent"){const t=valueForInput(n,"target",new Set(),"GameObject"),pl=dataLink(n.id,"parent"),par=pl?valueExpr(pl.from,new Set(),"GameObject",pl.fromPin):"null";out.push(p+"if ("+t+" != null) "+t+".transform.SetParent("+par+" != null ? "+par+".transform : null);");
+   }else if(n.type==="setvar"){
     const v=findVar(n.values?.variable);
     if(!v)report("Choose a variable in Set Variable.");
     else out.push(p+v.codeName+" = "+valueForInput(n,"value",new Set(),v.type)+";");
