@@ -21,7 +21,7 @@ function connectedComponentType(n){
  return null;
 }
 function nodeInputs(n){
- if(n?.type==="foreach"){const d=getDef(n.type),type=n.values?.elementType||"GameObject",mode=n.values?.mode||"Loop";return (d?.dataIn||[]).filter(p=>p.id==="list"||(mode==="GetElement"&&p.id==="index")).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:{...p,type:"int"});}
+ if(n?.type==="foreach"){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>({...p,type:p.id==="list"?"List<"+type+">":p.type}));}
  if(["listelement","listclosest","listfarthest"].includes(n?.type)){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:p.id==="index"?{...p,type:"int"}:{...p,type});}
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
@@ -47,7 +47,7 @@ function nodeInputs(n){
 }
 function nodeOutputs(n){
  const d=getDef(n?.type);
-
+ if(n?.type==="foreach"&&(n.values?.mode||"Loop")!=="LoopWithOutput")return [];
  if(n?.type!=="getcomponentvalue")return d?.dataOut||[];
  const ct=connectedComponentType(n);
  if(!ct)return [];
@@ -357,7 +357,7 @@ function renderNodes(){
   const d=getDef(n.type);if(!d)return;
   const el=document.createElement("div");el.className="node"+(selectedNode===n.id?" selected":"");el.dataset.id=n.id;el.style.left=n.x+"px";el.style.top=n.y+"px";el.style.setProperty("--accent",n.color||d.color);
   let html='<div class="node-head"><span class="node-accent"></span>'+esc(d.name)+'</div>';
-  if(d.flowIn&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec")&&!(n.type==="foreach"&&(n.values?.mode||"Loop")==="GetElement"))d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
+  if(d.flowIn&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"))d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
   html+='<div class="node-body">';
   html+='<div class="node-description">'+esc(d.desc)+'</div>';
   (d.fields||[]).forEach(f=>{html+=fieldHtml(n,f)});
