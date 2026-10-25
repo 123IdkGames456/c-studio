@@ -3,7 +3,7 @@ const CODES_SHEET_NAME = "Published Codes";
 const CUSTOM_BLOCKS_SHEET_NAME = "Published Custom Blocks";
 const PAYLOAD_PARTS = ["payload1", "payload2", "payload3", "payload4", "payload5"];
 const PAYLOAD_CHUNK_SIZE = 45000;
-const HEADERS = ["id", "type", "name", "description", "author", "createdAt", ...PAYLOAD_PARTS, "username", "password", "available"];
+const HEADERS = ["id", "type", "name", "createdAt", ...PAYLOAD_PARTS, "available"];
 
 function setupExploreSheets() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -18,55 +18,27 @@ function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   try {
     const sheets = setupAndGetSheets_();
-    if (params.action === "verify") {
-      const id = String(params.id || "");
-      const password = String(params.password ?? "");
-      if (!id) throw new Error("A listing ID is required.");
-      let found = null;
-      sheets.some(sheet => {
-        const values = sheet.getDataRange().getValues();
-        if (values.length < 2) return false;
-        const headers = values[0].map(String);
-        const idIndex = headers.indexOf("id");
-        const passwordIndex = headers.findIndex(header => String(header).trim().toLowerCase() === "password");
-        for (let r = 1; r < values.length; r++) {
-          if (String(values[r][idIndex]) === id) {
-            const storedPassword = passwordIndex >= 0 ? String(values[r][passwordIndex] ?? "") : "";
-            found = storedPassword === password;
-            return true;
-          }
-        }
-        return false;
-      });
-      if (found === null) throw new Error("This published item was not found. Refresh Explore and try again.");
-      return output_({ ok: true, valid: found, error: found ? "" : "Password does not match this listing exactly." }, params.callback);
-    }
-
     if (params.action !== "list") {
       return output_({ ok: true, message: "C-Studio Explore backend is running.", sheets: [CODES_SHEET_NAME, CUSTOM_BLOCKS_SHEET_NAME] }, params.callback);
     }
-
-    let items = [];
+    const items = [];
     sheets.forEach(sheet => {
       const values = sheet.getDataRange().getValues();
       if (values.length < 2) return;
       const headers = values.shift().map(String);
       values.filter(row => row.some(cell => cell !== "")).forEach(row => {
-        const item = {};
-        headers.forEach((header, i) => item[header] = row[i]);
-        const payload = readPayload_(item);
-        try { item.payload = JSON.parse(payload); } catch (_) { item.payload = payload; }
-        if (!item.id || !["code", "custom"].includes(String(item.type))) return;
-        if (String(item.available).trim().toLowerCase() === "false" || String(item.available).trim() === "0") return;
+        const record = {};
+        headers.forEach((header, i) => record[header] = row[i]);
+        if (!record.id || !["code", "custom"].includes(String(record.type))) return;
+        if (String(record.available).trim().toLowerCase() === "false" || String(record.available).trim() === "0") return;
+        let payload;
+        try { payload = JSON.parse(readPayload_(record)); } catch (_) { payload = readPayload_(record); }
         items.push({
-          id: String(item.id),
-          type: String(item.type),
-          name: String(item.name || "Untitled"),
-          description: String(item.description || ""),
-          author: String(item.author || ""),
-          createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt || ""),
-          username: String(item.username || item.author || ""),
-          payload: item.payload
+          id: String(record.id),
+          type: String(record.type),
+          name: String(record.name || "Untitled"),
+          createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : String(record.createdAt || ""),
+          payload: payload
         });
       });
     });
@@ -84,39 +56,28 @@ function doPost(e) {
 
     if (data.action === "manage") {
       const id = String(data.id || "");
-      const password = String(data.password ?? "");
       const manageAction = String(data.manageAction || "");
       if (!id) throw new Error("A listing ID is required.");
-      if (!["rename", "delete", "changePassword"].includes(manageAction)) throw new Error("Unsupported management action.");
+      if (!["rename", "delete"].includes(manageAction)) throw new Error("Unsupported management action.");
       const sheets = setupAndGetSheets_();
-      let foundSheet = null, foundRow = -1, headers = null, row = null;
+      let foundSheet = null, foundRow = -1, headers = null;
       sheets.some(sheet => {
         const values = sheet.getDataRange().getValues();
         if (values.length < 2) return false;
         const hs = values[0].map(String), idIndex = hs.indexOf("id");
         for (let r = 1; r < values.length; r++) {
           if (String(values[r][idIndex]) === id) {
-            foundSheet = sheet; foundRow = r + 1; headers = hs; row = values[r]; return true;
+            foundSheet = sheet; foundRow = r + 1; headers = hs; return true;
           }
         }
         return false;
       });
       if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
-      const passwordIndex = headers.findIndex(header => String(header).trim().toLowerCase() === "password");
-      const storedPassword = passwordIndex >= 0 ? String(row[passwordIndex] ?? "") : "";
-      if (!password || password !== storedPassword) throw new Error("Password does not match this listing exactly.");
       if (manageAction === "delete") {
         const availableIndex = headers.indexOf("available");
         if (availableIndex < 0) throw new Error("The sheet is missing its available column. Run setupExploreSheets() and redeploy.");
         foundSheet.getRange(foundRow, availableIndex + 1).setValue(false);
         return output_({ ok: true, message: "Listing removed. Existing local copies are unaffected; new installs are blocked." });
-      }
-      if (manageAction === "changePassword") {
-        const newPassword = String(data.newPassword ?? "");
-        if (!newPassword) throw new Error("A new password is required.");
-        if (passwordIndex < 0) throw new Error("The sheet is missing its password column. Run setupExploreSheets() and redeploy.");
-        foundSheet.getRange(foundRow, passwordIndex + 1).setValue(newPassword);
-        return output_({ ok: true, message: "Password changed." });
       }
       const newName = String(data.name || "").trim();
       if (!newName) throw new Error("A new public name is required.");
@@ -127,8 +88,6 @@ function doPost(e) {
     if (data.action !== "publish") throw new Error("Unsupported action.");
     if (!["code", "custom"].includes(data.type)) throw new Error("Type must be code or custom.");
     if (!String(data.name || "").trim()) throw new Error("A published name is required.");
-    const password = String(data.password ?? "");
-    if (!password) throw new Error("Create a password before publishing.");
     if (!data.payload || typeof data.payload !== "object") throw new Error("A valid item payload is required.");
 
     const serialized = JSON.stringify(data.payload);
@@ -144,10 +103,6 @@ function doPost(e) {
       id: Utilities.getUuid(),
       type: data.type,
       name: String(data.name).trim().slice(0, 120),
-      description: String(data.description || "").trim().slice(0, 500),
-      author: String(data.author || "C-Studio user").slice(0, 80),
-      username: String(data.author || "C-Studio user").slice(0, 80),
-      password: password,
       available: true,
       createdAt: new Date().toISOString()
     };
@@ -167,7 +122,6 @@ function setupAndGetSheets_() {
   ensureHeaders_(custom);
   return [codes, custom];
 }
-
 function getOrCreateSheet_(ss, name) {
   return ss.getSheetByName(name) || ss.insertSheet(name);
 }
@@ -183,7 +137,7 @@ function ensureHeaders_(sheet) {
 
   const oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
   const oldHeaders = oldValues[0].map(value => String(value || "").trim());
-  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header) && !["passwordSalt", "passwordHash", "passwordUpdatedAt"].includes(header))];
+  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header) && !["passwordSalt", "passwordHash", "passwordUpdatedAt", "username", "password", "author", "description"].includes(String(header).trim().toLowerCase()))];
   const rows = [headers];
 
   for (let r = 1; r < oldValues.length; r++) {
@@ -202,9 +156,6 @@ function ensureHeaders_(sheet) {
     if (!row.id) row.id = Utilities.getUuid();
     if (!row.type) row.type = sheet.getName() === CUSTOM_BLOCKS_SHEET_NAME ? "custom" : "code";
     if (!row.name) row.name = "Recovered item";
-    if (row.description === undefined || row.description === null) row.description = "";
-    if (!row.author) row.author = "C-Studio user";
-    if (!row.username) row.username = row.author;
     if (!row.createdAt) row.createdAt = new Date().toISOString();
 
     PAYLOAD_PARTS.forEach((key, i) => {
