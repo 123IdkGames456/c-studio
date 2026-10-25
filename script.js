@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const defs = BlueprintBlocks.defs;
 const CUSTOM_BLOCKS_KEY="ikirumi-unity-custom-blocks-v1";
-const EXPLORE_DEFAULT_ENDPOINT="https://script.google.com/macros/s/AKfycbxBd0xGmrI3A78LASgrNKXy2mzNF8X5y4CIYS8z8-qFj_Pd7Yymdr45D0l-tiv5Qk8W/exec";
+const EXPLORE_DEFAULT_ENDPOINT="https://script.google.com/macros/s/AKfycbyums-BiInck2eEO7ZxWgDclx5NXufvuIWBXQ8DnYbuRh8ClUzqLf1S6yB3qB1AQpyt/exec";
 const EXPLORE_ENDPOINT_KEY="cstudio-explore-endpoint-v1";
 let customBlocks=(()=>{try{const x=JSON.parse(localStorage.getItem(CUSTOM_BLOCKS_KEY)||"[]");return Array.isArray(x)?x:[]}catch{return []}})();
 let customEditingId=null,customParentState=null,customEditorStack=[],lastCustomNodeClick={id:null,time:0};
@@ -879,7 +879,7 @@ function saveCurrentToLibrary(forceNew=false,name=null){const project=JSON.parse
 function openLibrary(){renderLibrary();$("libraryPanel").hidden=false}
 function renderLibrary(){const list=$("libraryList"),q=($("librarySearch").value||"").trim().toLowerCase(),all=libraryEntries(),visible=all.filter(e=>(e.name+" "+(e.folder||"")+(e.favorite?" favorite":"")).toLowerCase().includes(q));$("libraryCount").textContent=all.length+" script"+(all.length===1?"":"s");list.innerHTML=visible.length?visible.map(e=>'<article class="library-entry"><div class="library-entry-top"><button class="library-load" data-action="load" data-id="'+esc(e.id)+'"><strong>'+esc(e.name)+'</strong><span>'+esc(e.folder||"My Scripts")+(e.favorite?" · ★ Favorite":"")+'</span></button><button class="library-favorite '+(e.favorite?"active":"")+'" data-action="favorite" data-id="'+esc(e.id)+'">'+(e.favorite?"★":"☆")+'</button></div><div class="library-meta"><span>Size <b>'+formatSize(entrySize(e))+'</b></span><span>Made '+esc(new Date(e.createdAt).toLocaleString())+'</span><span>Updated '+esc(new Date(e.updatedAt).toLocaleString())+'</span></div><div class="library-entry-actions"><button data-action="rename" data-id="'+esc(e.id)+'">Rename</button><button data-action="move" data-id="'+esc(e.id)+'">Move</button><button data-action="export" data-id="'+esc(e.id)+'">Export JSON</button><button data-action="publish" data-id="'+esc(e.id)+'">Publish</button><button class="danger" data-action="delete" data-id="'+esc(e.id)+'">Remove</button></div></article>').join(""):'<div class="library-empty">No saved scripts yet. Press Save or add a JSON file.</div>'}
 
-function exploreEndpoint(){return (localStorage.getItem(EXPLORE_ENDPOINT_KEY)||EXPLORE_DEFAULT_ENDPOINT).trim()}
+function exploreEndpoint(){let saved=(localStorage.getItem(EXPLORE_ENDPOINT_KEY)||"").trim();if(!saved||saved==="https://script.google.com/macros/s/AKfycbxBd0xGmrI3A78LASgrNKXy2mzNF8X5y4CIYS8z8-qFj_Pd7Yymdr45D0l-tiv5Qk8W/exec"){saved=EXPLORE_DEFAULT_ENDPOINT;try{localStorage.setItem(EXPLORE_ENDPOINT_KEY,saved)}catch{}}return saved}
 let exploreItems=[],activeExploreTab="codes";
 function saveExploreEndpoint(){const value=$("exploreEndpoint").value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec(?:\?.*)?$/.test(value)){alert("Paste a deployed Google Apps Script web app URL ending in /exec.");return}localStorage.setItem(EXPLORE_ENDPOINT_KEY,value);$("exploreConnectionStatus").textContent="URL saved. Loading published items…";refreshExplore()}
 function openExplore(){ $("libraryPanel").hidden=true;$("explorePanel").hidden=false;$("exploreEndpoint").value=exploreEndpoint();renderExplore();refreshExplore()}
@@ -900,13 +900,13 @@ async function publishItem(type,item){
  const oldButtonText=button&&button.tagName==="BUTTON"?button.textContent:"";
  if(button&&button.tagName==="BUTTON"){button.disabled=true;button.textContent="Publishing…"}
  $("explorePanel").hidden=false;
- connection.textContent="Step 1/3 · Preparing "+label+" for publishing…";
+ connection.textContent="Step 1/4 · Preparing "+label+" for publishing…";
  status("Publishing "+label+"…");
  let previousIds=new Set(exploreItems.map(x=>String(x.id)));
  try{
-  connection.textContent="Step 2/3 · Sending "+label+" to Google Sheets…";
+  connection.textContent="Step 2/4 · Sending "+label+" to Google Sheets…";
   const response=await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,payload:item.payload})});
-  connection.textContent="Step 3/3 · Request sent. Checking whether Google Sheets saved it…";
+  connection.textContent="Step 3/4 · Request sent. Checking whether Google Sheets saved it…";
   let lastError=null, published=null;
   for(let attempt=1;attempt<=4;attempt++){
    await new Promise(resolve=>setTimeout(resolve,1500));
@@ -918,11 +918,11 @@ async function publishItem(type,item){
     exploreItems=items;
     renderExplore();
     if(published)break;
-    connection.textContent="Step 3/3 · Checking Google Sheets… attempt "+attempt+" of 4.";
-   }catch(e){lastError=e;connection.textContent="Step 3/3 · Could not verify yet (attempt "+attempt+" of 4): "+(e?.message||String(e))}
+    connection.textContent="Step 3/4 · Checking Google Sheets… attempt "+attempt+" of 4.";
+   }catch(e){lastError=e;connection.textContent="Step 3/4 · Could not verify yet (attempt "+attempt+" of 4): "+(e?.message||String(e))}
   }
   if(published){
-   connection.textContent="Published successfully · "+name+" is now visible in Explore.";
+   connection.textContent="Step 4/4 · Done! Published successfully · "+name+" is now visible in Explore.";
    status("Published successfully: "+name);
   }else{
    const detail=lastError?" Last check error: "+lastError.message:"";
