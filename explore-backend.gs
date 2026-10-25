@@ -120,7 +120,7 @@ function doPost(e) {
       }
       if (manageAction === "changePassword") {
         const newPassword = String(data.newPassword || "");
-        if (newPassword.length < 6) throw new Error("New owner password must be at least 6 characters.");
+        if (newPassword.length < 1) throw new Error("New owner password must contain at least 1 character.");
         const newSalt = Utilities.getUuid();
         foundSheet.getRange(foundRow, headers.indexOf("passwordSalt") + 1).setValue(newSalt);
         foundSheet.getRange(foundRow, headers.indexOf("passwordHash") + 1).setValue(passwordHash_(newSalt, newPassword));
@@ -136,7 +136,7 @@ function doPost(e) {
     if (data.action !== "publish") throw new Error("Unsupported action.");
     if (!["code", "custom"].includes(data.type)) throw new Error("Type must be code or custom.");
     if (!String(data.name || "").trim()) throw new Error("A published name is required.");
-    if (String(data.password || "").length < 6) throw new Error("Owner password must be at least 6 characters.");
+    if (String(data.password || "").length < 1) throw new Error("Owner password must contain at least 1 character.");
     if (!data.payload || typeof data.payload !== "object") throw new Error("A valid item payload is required.");
 
     const serialized = JSON.stringify(data.payload);
