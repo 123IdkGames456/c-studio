@@ -57,11 +57,79 @@ function cleanNumber(value,type){
  }
  return typedDefault(type);
 }
-function compile(inputNodes,inputLinks,inputVars,className){
- const nodes=Array.isArray(inputNodes)?inputNodes:[];
- const links=Array.isArray(inputLinks)?inputLinks:[];
- const vars=Array.isArray(inputVars)?inputVars:[];
- const diagnostics=[],classFields=[],methods=[],extraMethods=[],generatedWaits=new Set();
+function expandCustomGraph(inputNodes,inputLinks,inputVars,customBlocks){
+ const nodes=JSON.parse(JSON.stringify(Array.isArray(inputNodes)?inputNodes:[]));
+ const links=JSON.parse(JSON.stringify(Array.isArray(inputLinks)?inputLinks:[]));
+ const vars=JSON.parse(JSON.stringify(Array.isArray(inputVars)?inputVars:[]));
+ const diagnostics=[];
+ const custom=Array.isArray(customBlocks)?customBlocks:[];
+ const idPart=value=>String(value??"x").replace(/[^A-Za-z0-9_]/g,"_");
+ let guard=0;
+ while(guard++<500){
+  const instance=nodes.find(n=>String(n.type||"").startsWith("customblock_"));
+  if(!instance)break;
+  const customId=String(instance.type).slice("customblock_".length);
+  const definition=custom.find(d=>String(d.id)===customId);
+  const removeInstance=()=>{const ix=nodes.findIndex(n=>n.id===instance.id);if(ix>=0)nodes.splice(ix,1);for(let i=links.length-1;i>=0;i--)if(links[i].from===instance.id||links[i].to===instance.id)links.splice(i,1)};
+  const stack=Array.isArray(instance.__customStack)?instance.__customStack:[];
+  if(!definition){diagnostics.push("A custom node definition is missing: "+(instance.values?.name||customId)+". Include its custom block library in the project JSON.");removeInstance();continue}
+  if(stack.includes(customId)||stack.length>=16){diagnostics.push("Recursive custom blocks are not supported: "+definition.name+".");removeInstance();continue}
+  const prefix="cb_"+idPart(instance.id)+"_"+idPart(customId)+"_";
+  const originalNodes=Array.isArray(definition.nodes)?definition.nodes:[];
+  const inputBoundary=originalNodes.find(n=>n.type==="custominput");
+  const outputBoundary=originalNodes.find(n=>n.type==="customoutput");
+  const cloned=originalNodes.map(n=>({...JSON.parse(JSON.stringify(n)),id:prefix+idPart(n.id),__customStack:[...stack,customId]}));
+  const idMap=new Map(originalNodes.map((n,i)=>[String(n.id),cloned[i].id]));
+  const cloneOf=id=>idMap.get(String(id))??prefix+idPart(id);
+  const variableMap=new Map();
+  for(const v of Array.isArray(definition.variables)?definition.variables:[]){
+   const id="cv_"+idPart(instance.id)+"_"+idPart(v.id);
+   variableMap.set(String(v.id),id);
+   vars.push({...v,id,name:"Custom_"+idPart(instance.id)+"_"+String(v.name||"Variable"),customScope:customId});
+  }
+  for(const n of cloned){
+   if(n.values)for(const key of ["variable","componentVariable"])if(variableMap.has(String(n.values[key])))n.values[key]=variableMap.get(String(n.values[key]));
+  }
+  const innerLinks=(Array.isArray(definition.links)?definition.links:[]).map(l=>({...l,from:cloneOf(l.from),to:cloneOf(l.to)}));
+  const clonedInput=inputBoundary?cloned[originalNodes.indexOf(inputBoundary)]:null;
+  const clonedOutput=outputBoundary?cloned[originalNodes.indexOf(outputBoundary)]:null;
+  const inputId=clonedInput?.id,outputId=clonedOutput?.id;
+  const outerInputs=links.filter(l=>l.kind==="data"&&l.to===instance.id);
+  const inputPorts=inputBoundary?.values?.ports||[];
+  for(const port of inputPorts){
+   const outer=outerInputs.find(l=>l.toPin===port.id);
+   const uses=innerLinks.filter(l=>l.kind==="data"&&l.from===inputId&&l.fromPin===port.id);
+   if(!uses.length)continue;
+   let sourceId=outer?.from,sourcePin=outer?.fromPin||"value";
+   if(!outer){
+    sourceId=prefix+"default_"+idPart(port.id);
+    sourcePin="value";
+    cloned.push({id:sourceId,type:"literal",x:(clonedInput?.x||0)-260,y:(clonedInput?.y||0)+cloned.length*4,values:{type:port.type||"int",value:port.default??typedDefault(port.type||"int")}});
+   }
+   for(const link of uses){link.from=sourceId;link.fromPin=sourcePin}
+  }
+  const boundaryLinks=innerLinks.filter(l=>l.kind==="data"&&l.from===inputId&&inputPorts.some(p=>p.id===l.fromPin));
+  for(const l of boundaryLinks)innerLinks.splice(innerLinks.indexOf(l),1);
+  const externalFlowIn=links.filter(l=>l.kind==="flow"&&l.to===instance.id);
+  const externalFlowOut=links.filter(l=>l.kind==="flow"&&l.from===instance.id);
+  const externalDataOut=links.filter(l=>l.kind==="data"&&l.from===instance.id);
+  for(const l of externalFlowIn){l.to=inputId||l.to;l.toPin="Exec"}
+  for(const l of externalFlowOut){l.from=outputId||l.from;l.fromPin="Then"}
+  for(const l of externalDataOut){l.from=outputId||l.from}
+  for(let i=links.length-1;i>=0;i--)if(links[i].kind==="data"&&links[i].to===instance.id)links.splice(i,1);
+  for(const l of innerLinks)links.push(l);
+  const index=nodes.findIndex(n=>n.id===instance.id);
+  if(index>=0)nodes.splice(index,1,...cloned);
+ }
+ if(guard>=500)diagnostics.push("Custom block expansion stopped after reaching its safety limit.");
+ return {nodes,links,vars,diagnostics};
+}
+function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
+ const expanded=expandCustomGraph(inputNodes,inputLinks,inputVars,customBlocks);
+ const nodes=expanded.nodes;
+ const links=expanded.links;
+ const vars=expanded.vars;
+ const diagnostics=expanded.diagnostics.slice(),classFields=[],methods=[],extraMethods=[],generatedWaits=new Set();
  const report=message=>{if(!diagnostics.includes(message))diagnostics.push(message)};
  const usedNames=new Set(["Start","Update","FixedUpdate"]);
  const safeClass=safeIdentifier(className||"BlueprintScript","BlueprintScript",new Set());
@@ -214,7 +282,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(seen.has(nodeId)){report("A data connection loop was detected at "+n.type+".");return typedDefault(expectedType||nodeType(n))}
   const path=new Set(seen);path.add(nodeId);
   let expression,sourceType=nodeType(n);
-  if(n.type==="literal"){
+  if(n.type==="customoutput"){
+   const port=(n.values?.ports||[]).find(p=>p.id===outputPin);expression=valueForInput(n,outputPin,path,port?.type||"dynamic");sourceType=port?.type||"dynamic";
+  }else if(n.type==="literal"){
    const type=n.values?.type||"int",raw=n.values?.value??"0";
    if(/^List<.+>$/.test(type)){
     const elementType=type.slice(5,-1);let items=[];try{const parsed=JSON.parse(raw||"[]");if(Array.isArray(parsed))items=parsed;}catch{}
@@ -472,7 +542,7 @@ function compile(inputNodes,inputLinks,inputVars,className){
    visited.add(current);
    const n=findNode(current);if(!n)break;
    const p="    ".repeat(indent);
-   if(["start","update","fixed","awake","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","comment"].includes(n.type)){}
+   if(["start","update","fixed","awake","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","comment","custominput","customoutput"].includes(n.type)){}
    else if(n.type==="breakloop"){out.push(p+"break;");break}
    else if(n.type==="continueloop"){out.push(p+"continue;");break}
    else if(n.type==="forloop"){
