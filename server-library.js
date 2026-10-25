@@ -66,13 +66,21 @@
   let pendingPublishEntry = null;
   let publishRequestId = null;
   let publishTimeout = null;
+  let signedInToken = sessionStorage.getItem("cstudioGoogleIdToken") || "";
+  let signedInUser = null;
+  try { signedInUser = JSON.parse(sessionStorage.getItem("cstudioGoogleUser") || "null"); } catch {}
   function showPublishModal(entry) {
     pendingPublishEntry = entry;
+    if (signedInToken) {
+      submitPublish(signedInToken);
+      return;
+    }
     $("publishLoading").hidden = true;
     $("publishStatus").className = "publish-status";
     $("publishStatus").textContent = "Sign in with Google to publish this script. Your Google account name will be shown in Explore.";
     $("publishSubtitle").textContent = "Publishing: " + String(entry.name || entry.project.projectName || "Untitled script");
     $("publishModal").hidden = false;
+    $("googleSignInButton").hidden = false;
     $("googleSignInButton").innerHTML = "";
     if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
       $("publishStatus").textContent = "Google Sign-In needs setup: add your Google OAuth Client ID to server-library.js and Code.gs.";
@@ -165,12 +173,60 @@
     }, 18000);
   }
 
+  function decodeGoogleUser(token) {
+    try {
+      const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const claims = JSON.parse(decodeURIComponent(escape(atob(part))));
+      return { name: claims.name || claims.email || "Google user", email: claims.email || "" };
+    } catch {
+      return { name: "Google user", email: "" };
+    }
+  }
+
+  function updateAccountButton() {
+    const button = $("accountButton");
+    if (!button) return;
+    button.textContent = signedInToken ? "Log out" : "Log in";
+    button.title = signedInToken && signedInUser ? "Signed in as " + signedInUser.email : "Sign in with Google";
+  }
+
+  function openAccountLogin() {
+    pendingPublishEntry = null;
+    $("publishLoading").hidden = true;
+    $("publishSubtitle").textContent = "Sign in to C-Studio";
+    $("publishStatus").className = "publish-status";
+    $("publishStatus").textContent = "Sign in with Google. Your account name will be attached to scripts you publish.";
+    $("publishModal").hidden = false;
+    $("googleSignInButton").hidden = false;
+    $("googleSignInButton").innerHTML = "";
+    if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
+      $("publishStatus").textContent = "Google Sign-In needs setup: add your Google OAuth Client ID to server-library.js and Code.gs.";
+    } else if (window.google && google.accounts && google.accounts.id) {
+      google.accounts.id.renderButton($("googleSignInButton"), {
+        theme: "outline", size: "large", text: "signin_with", shape: "rectangular", width: 260
+      });
+    } else {
+      $("publishStatus").textContent = "Google Sign-In is loading. Close this window and try again in a moment.";
+    }
+  }
+
   function handleGoogleCredential(response) {
     if (!response || !response.credential) {
       publishFailure("Google Sign-In did not return a credential. Please try again.");
       return;
     }
-    submitPublish(response.credential);
+    signedInToken = response.credential;
+    signedInUser = decodeGoogleUser(signedInToken);
+    try {
+      sessionStorage.setItem("cstudioGoogleIdToken", signedInToken);
+      sessionStorage.setItem("cstudioGoogleUser", JSON.stringify(signedInUser));
+    } catch {}
+    updateAccountButton();
+    if (pendingPublishEntry) {
+      submitPublish(signedInToken);
+    } else {
+      $("publishModal").hidden = true;
+    }
   }
 
   const GOOGLE_CLIENT_ID = "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE";
@@ -183,7 +239,18 @@
       auto_select: false
     });
   }
-  window.addEventListener("load", initializeGoogleSignIn);
+  window.addEventListener("load", () => { initializeGoogleSignIn(); updateAccountButton(); });
+  $("accountButton")?.addEventListener("click", () => {
+    if (signedInToken) {
+      signedInToken = "";
+      signedInUser = null;
+      try { sessionStorage.removeItem("cstudioGoogleIdToken"); sessionStorage.removeItem("cstudioGoogleUser"); } catch {}
+      if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
+      updateAccountButton();
+    } else {
+      openAccountLogin();
+    }
+  });
   window.addEventListener("cstudio:publish-script", event => {
     const local = event.detail?.entry;
     if (!local?.project) return;
