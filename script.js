@@ -943,13 +943,18 @@ async function sendExploreManage(id,manageAction,extra={}){
  const endpoint=exploreEndpoint();
  const data=await jsonpRequest(endpoint,{action:"manage",id,manageAction,...extra});
  if(!data||data.ok!==true)throw Error(data?.error||"Google Apps Script did not confirm the change.");
+ const serverMessage=String(data.message||"").toLowerCase();
+ const expectedMessage=manageAction==="delete"?"listing removed":"public listing renamed";
+ if(!serverMessage.includes(expectedMessage)){
+  throw Error("The Apps Script endpoint replied, but did not perform the requested "+(manageAction==="delete"?"removal":"rename")+". Its deployed version may be outdated. Copy the latest explore-backend.gs from the c-studio GitHub repository into Apps Script, save it, then deploy a new version.");
+ }
  const listed=await jsonpList(endpoint);
  if(!listed||listed.ok===false)throw Error(listed?.error||"The change was accepted, but Explore could not refresh.");
  exploreItems=Array.isArray(listed.items)?listed.items:[];
  const current=exploreItems.find(x=>String(x.id)===String(id));
  if(manageAction==="rename"&&current&&current.name===extra.name)return {ok:true};
  if(manageAction==="delete"&&!current)return {ok:true};
- throw Error("Google Sheets confirmed the request, but the listing did not update. Refresh Explore and check the Apps Script execution log.");
+ throw Error("The Apps Script confirmed the "+(manageAction==="delete"?"removal":"rename")+", but the refreshed Explore list still shows the old item. Check that this deployment is connected to the expected spreadsheet and that the Published Codes / Published Custom Blocks tabs have an available column.");
 }
 async function manageExploreItem(id){
  const item=exploreItems.find(x=>String(x.id)===String(id));if(!item)return;
