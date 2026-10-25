@@ -18,6 +18,10 @@ function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   try {
     const sheets = setupAndGetSheets_();
+    if (params.action === "manage") {
+      const result = manageListing_(sheets, params.id, params.manageAction, params.name);
+      return output_({ ok: true, message: result }, params.callback);
+    }
     if (params.action !== "list") {
       return output_({ ok: true, message: "C-Studio Explore backend is running.", sheets: [CODES_SHEET_NAME, CUSTOM_BLOCKS_SHEET_NAME] }, params.callback);
     }
@@ -55,34 +59,8 @@ function doPost(e) {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
     if (data.action === "manage") {
-      const id = String(data.id || "");
-      const manageAction = String(data.manageAction || "");
-      if (!id) throw new Error("A listing ID is required.");
-      if (!["rename", "delete"].includes(manageAction)) throw new Error("Unsupported management action.");
-      const sheets = setupAndGetSheets_();
-      let foundSheet = null, foundRow = -1, headers = null;
-      sheets.some(sheet => {
-        const values = sheet.getDataRange().getValues();
-        if (values.length < 2) return false;
-        const hs = values[0].map(String), idIndex = hs.indexOf("id");
-        for (let r = 1; r < values.length; r++) {
-          if (String(values[r][idIndex]) === id) {
-            foundSheet = sheet; foundRow = r + 1; headers = hs; return true;
-          }
-        }
-        return false;
-      });
-      if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
-      if (manageAction === "delete") {
-        const availableIndex = headers.indexOf("available");
-        if (availableIndex < 0) throw new Error("The sheet is missing its available column. Run setupExploreSheets() and redeploy.");
-        foundSheet.getRange(foundRow, availableIndex + 1).setValue(false);
-        return output_({ ok: true, message: "Listing removed. Existing local copies are unaffected; new installs are blocked." });
-      }
-      const newName = String(data.name || "").trim();
-      if (!newName) throw new Error("A new public name is required.");
-      foundSheet.getRange(foundRow, headers.indexOf("name") + 1).setValue(newName.slice(0, 120));
-      return output_({ ok: true, message: "Public listing renamed." });
+      const result = manageListing_(setupAndGetSheets_(), data.id, data.manageAction, data.name);
+      return output_({ ok: true, message: result });
     }
 
     if (data.action !== "publish") throw new Error("Unsupported action.");
@@ -112,6 +90,40 @@ function doPost(e) {
   } catch (err) {
     return output_({ ok: false, error: String(err.message || err) });
   }
+}
+
+
+function manageListing_(sheets, rawId, rawAction, rawName) {
+  const id = String(rawId || "");
+  const action = String(rawAction || "");
+  if (!id) throw new Error("A listing ID is required.");
+  if (!["rename", "delete"].includes(action)) throw new Error("Unsupported management action.");
+  let foundSheet = null, foundRow = -1, headers = null;
+  sheets.some(sheet => {
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) return false;
+    const hs = values[0].map(String), idIndex = hs.indexOf("id");
+    if (idIndex < 0) return false;
+    for (let r = 1; r < values.length; r++) {
+      if (String(values[r][idIndex]) === id) {
+        foundSheet = sheet; foundRow = r + 1; headers = hs; return true;
+      }
+    }
+    return false;
+  });
+  if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
+  if (action === "delete") {
+    const availableIndex = headers.indexOf("available");
+    if (availableIndex < 0) throw new Error("The sheet is missing its available column. Run setupExploreSheets() and redeploy.");
+    foundSheet.getRange(foundRow, availableIndex + 1).setValue(false);
+    return "Listing removed. Existing local copies are unaffected; new installs are blocked.";
+  }
+  const newName = String(rawName || "").trim();
+  if (!newName) throw new Error("A new public name is required.");
+  const nameIndex = headers.indexOf("name");
+  if (nameIndex < 0) throw new Error("The sheet is missing its name column.");
+  foundSheet.getRange(foundRow, nameIndex + 1).setValue(newName.slice(0, 120));
+  return "Public listing renamed.";
 }
 
 function setupAndGetSheets_() {
