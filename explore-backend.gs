@@ -21,7 +21,7 @@ function doGet(e) {
     if (params.action === "verify") {
       const id = String(params.id || "");
       const password = String(params.password ?? "");
-      if (!id || !password) throw new Error("A listing ID and password are required.");
+      if (!id) throw new Error("A listing ID is required.");
       let found = null;
       sheets.some(sheet => {
         const values = sheet.getDataRange().getValues();
@@ -85,7 +85,7 @@ function doPost(e) {
       const id = String(data.id || "");
       const password = String(data.password ?? "");
       const manageAction = String(data.manageAction || "");
-      if (!id || !password) throw new Error("A listing ID and password are required.");
+      if (!id) throw new Error("A listing ID is required.");
       if (!["rename", "delete", "changePassword"].includes(manageAction)) throw new Error("Unsupported management action.");
       const sheets = setupAndGetSheets_();
       let foundSheet = null, foundRow = -1, headers = null, row = null;
@@ -101,8 +101,6 @@ function doPost(e) {
         return false;
       });
       if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
-      const storedPassword = String(row[headers.findIndex(header => String(header).trim().toLowerCase() === "password")] ?? "");
-      if (storedPassword !== password) throw new Error("Password does not match this listing exactly.");
       if (manageAction === "delete") {
         foundSheet.deleteRow(foundRow);
         return output_({ ok: true, message: "Listing removed. Existing local copies are unaffected." });
@@ -122,8 +120,7 @@ function doPost(e) {
     if (data.action !== "publish") throw new Error("Unsupported action.");
     if (!["code", "custom"].includes(data.type)) throw new Error("Type must be code or custom.");
     if (!String(data.name || "").trim()) throw new Error("A published name is required.");
-    const password = String(data.password ?? "");
-    if (!password) throw new Error("A password is required.");
+    const password = "";
     if (!data.payload || typeof data.payload !== "object") throw new Error("A valid item payload is required.");
 
     const serialized = JSON.stringify(data.payload);
