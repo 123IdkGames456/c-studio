@@ -71,20 +71,21 @@
   try { signedInUser = JSON.parse(sessionStorage.getItem("cstudioGoogleUser") || "null"); } catch {}
   function showPublishModal(entry) {
     pendingPublishEntry = entry;
-    if (signedInToken) {
-      submitPublish(signedInToken);
-      return;
-    }
     $("publishLoading").hidden = true;
     $("publishStatus").className = "publish-status";
-    $("publishStatus").textContent = "Sign in with Google to publish this script. Your Google account name will be shown in Explore.";
+    $("publishStatus").textContent = signedInToken
+      ? "Choose a username to show in Explore, then publish."
+      : "Choose a username, then sign in with Google to publish.";
     $("publishSubtitle").textContent = "Publishing: " + String(entry.name || entry.project.projectName || "Untitled script");
     $("publishModal").hidden = false;
-    $("googleSignInButton").hidden = false;
+    $("publishUsernameField").hidden = false;
+    $("publishUsername").value = "";
+    $("publishSubmit").hidden = !signedInToken;
+    $("googleSignInButton").hidden = !!signedInToken;
     $("googleSignInButton").innerHTML = "";
-    if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
+    if (!signedInToken && GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
       $("publishStatus").textContent = "Google Sign-In needs setup: add your Google OAuth Client ID to server-library.js and Code.gs.";
-    } else if (window.google && google.accounts && google.accounts.id) {
+    } else if (!signedInToken && window.google && google.accounts && google.accounts.id) {
       google.accounts.id.renderButton($("googleSignInButton"), {
         theme: "outline",
         size: "large",
@@ -92,8 +93,8 @@
         shape: "rectangular",
         width: 260
       });
-    } else {
-      $("publishStatus").textContent = "Google Sign-In is not configured yet. Set GOOGLE_CLIENT_ID in server-library.js and Code.gs.";
+    } else if (!signedInToken) {
+      $("publishStatus").textContent = "Google Sign-In is loading. Close this window and try again in a moment.";
     }
   }
   function closePublishModal() {
@@ -119,14 +120,33 @@
     $("exploreStatus").textContent = "Script published successfully. Refreshing server library…";
     loadServerEntries();
   }
+  function getDeviceId() {
+    let id = "";
+    try { id = localStorage.getItem("cstudioDeviceId") || ""; } catch {}
+    if (!id) {
+      id = "cstudio-device-" + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+      try { localStorage.setItem("cstudioDeviceId", id); } catch {}
+    }
+    return id;
+  }
+
   function submitPublish(idToken) {
     if (!pendingPublishEntry || publishRequestId || !idToken) return;
+    const username = String($("publishUsername").value || "").trim().replace(/\s+/g, " ");
+    if (!username || username.length < 2 || username.length > 24) {
+      $("publishStatus").className = "publish-status error";
+      $("publishStatus").textContent = "Enter a username between 2 and 24 characters.";
+      $("publishUsername").focus();
+      return;
+    }
     const local = pendingPublishEntry;
     const serverEntry = {
       name: String(local.name || local.project.projectName || "Untitled script"),
       type: "node",
       payload: JSON.stringify(local.project),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      username,
+      deviceId: getDeviceId()
     };
     publishRequestId = "cstudio-" + Date.now() + "-" + Math.random().toString(36).slice(2);
     const requestId = publishRequestId;
@@ -149,7 +169,7 @@
     form.action = SERVER_LIBRARY_URL;
     form.target = frame.name;
     form.hidden = true;
-    const fields = { action: "save", entry: JSON.stringify(serverEntry), idToken, requestId };
+    const fields = { action: "save", entry: JSON.stringify(serverEntry), idToken, username, deviceId: serverEntry.deviceId, requestId };
     Object.entries(fields).forEach(([name, value]) => {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -195,7 +215,9 @@
     $("publishLoading").hidden = true;
     $("publishSubtitle").textContent = "Sign in to C-Studio";
     $("publishStatus").className = "publish-status";
-    $("publishStatus").textContent = "Sign in with Google. Your account name will be attached to scripts you publish.";
+    $("publishStatus").textContent = "Sign in with Google. Your Google account verifies your identity; publishing a script also requires a username.";
+    $("publishUsernameField").hidden = true;
+    $("publishSubmit").hidden = true;
     $("publishModal").hidden = false;
     $("googleSignInButton").hidden = false;
     $("googleSignInButton").innerHTML = "";
@@ -256,6 +278,7 @@
     if (!local?.project) return;
     showPublishModal(local);
   });
+  $("publishSubmit")?.addEventListener("click", () => submitPublish(signedInToken));
   $("publishCancel")?.addEventListener("click", closePublishModal);
   $("publishClose")?.addEventListener("click", closePublishModal);
   $("publishModal")?.addEventListener("click", event => {
