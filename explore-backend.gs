@@ -137,7 +137,7 @@ function ensureHeaders_(sheet) {
 
   const oldValues = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
   const oldHeaders = oldValues[0].map(value => String(value || "").trim());
-  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header) && !["passwordSalt", "passwordHash", "passwordUpdatedAt", "username", "password", "author", "description"].includes(String(header).trim().toLowerCase()))];
+  const headers = [...HEADERS, ...oldHeaders.filter(header => header && !HEADERS.includes(header) && !["passwordsalt", "passwordhash", "passwordupdatedat", "username", "password", "author", "description"].includes(String(header).trim().toLowerCase()))];
   const rows = [headers];
 
   for (let r = 1; r < oldValues.length; r++) {
@@ -149,10 +149,6 @@ function ensureHeaders_(sheet) {
 
     const payload = readPayload_(obj);
     const row = { ...obj };
-    if (row.password === undefined || row.password === null || row.password === "") {
-      const passwordKey = Object.keys(obj).find(key => String(key).trim().toLowerCase() === "password");
-      if (passwordKey) row.password = obj[passwordKey];
-    }
     if (!row.id) row.id = Utilities.getUuid();
     if (!row.type) row.type = sheet.getName() === CUSTOM_BLOCKS_SHEET_NAME ? "custom" : "code";
     if (!row.name) row.name = "Recovered item";
