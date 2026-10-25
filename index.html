@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101218">
 <title>Unity C# Blueprint Studio</title>
-<link rel="stylesheet" href="style.css?v=library-custom-tabs-v1-20261025">
+<link rel="stylesheet" href="style.css?v=explore-publish-v1-20261025">
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="../" title="Back to Ikirumi Stuff">◈ <span>UNITY C# <b>BLUEPRINTS</b></span></a>
   <input id="projectName" class="project-name" value="My Blueprint Project" aria-label="Project name">
   <div class="top-actions">
-    <button id="newProject">New</button><button id="saveProject">Save</button><button id="loadProject">Load</button><button id="importJSON">Import JSON</button><button id="openLibrary">Library</button>
+    <button id="newProject">New</button><button id="saveProject">Save</button><button id="loadProject">Load</button><button id="importJSON">Import JSON</button><button id="openLibrary">Library</button><button id="openExplore">Explore</button>
     <button id="exportProject">Export .cs</button><button id="downloadProject">Project JSON</button>
   </div>
 </header>
@@ -43,6 +43,14 @@
   <div class="library-tabs"><button id="libraryScriptsTab" class="library-tab active" type="button">Codes</button><button id="libraryCustomTab" class="library-tab" type="button">Custom Blocks</button></div>
   <div id="libraryLocalView" class="library-view"><div class="library-toolbar"><input id="librarySearch" placeholder="Search saved scripts..." autocomplete="off"><button id="libraryImportJson" type="button">＋ Add JSON</button></div><div id="libraryList" class="library-list"></div><div class="library-footer"><span id="libraryCount">0 scripts</span><button id="librarySaveCurrent" type="button">Save current as new</button></div></div>
   <div id="libraryCustomView" class="library-view" hidden><div class="library-toolbar"><input id="customBlockSearch" placeholder="Search custom blocks..." autocomplete="off"></div><div id="customBlockLibraryList" class="library-list"></div><div class="library-footer"><span id="customBlockCount">0 custom blocks</span><span>Renaming updates every instance.</span></div></div>
+</section>
+
+<section id="explorePanel" class="library-panel explore-panel" hidden>
+  <div class="library-heading"><div><strong>EXPLORE</strong><p>Discover community codes and reusable custom blocks.</p></div><button id="closeExplore" type="button" aria-label="Close Explore">×</button></div>
+  <div class="library-tabs"><button id="exploreCodesTab" class="library-tab active" type="button">Published Codes</button><button id="exploreCustomTab" class="library-tab" type="button">Published Custom Blocks</button></div>
+  <div class="explore-connect"><label for="exploreEndpoint">Google Apps Script web app URL</label><div class="library-toolbar"><input id="exploreEndpoint" placeholder="Paste deployed Apps Script URL..." autocomplete="url"><button id="saveExploreEndpoint" type="button">Connect</button></div><p id="exploreConnectionStatus">Connect your Google Sheet backend to browse and publish items.</p><details><summary>How to connect the shared sheet</summary><ol><li>Open the <a href="https://script.google.com/" target="_blank" rel="noopener">Google Apps Script editor</a>.</li><li>Create a project and paste the code from <code>explore-backend.gs</code> in the C-Studio GitHub repository.</li><li>Deploy as a Web app, execute as yourself, and allow access to anyone.</li><li>Copy the deployed web app URL here and press Connect.</li></ol><p>Published items are stored in your spreadsheet tab with ID 505903224. Only publish content you are comfortable sharing publicly.</p></details></div>
+  <div id="exploreCodesView" class="library-view"><div class="library-toolbar"><input id="exploreCodesSearch" placeholder="Search published codes..." autocomplete="off"><button id="refreshExploreCodes" type="button">Refresh</button></div><div id="exploreCodesList" class="library-list"></div><div class="library-footer"><span id="exploreCodesCount">0 published codes</span><span>Install saves a local copy.</span></div></div>
+  <div id="exploreCustomView" class="library-view" hidden><div class="library-toolbar"><input id="exploreCustomSearch" placeholder="Search published custom blocks..." autocomplete="off"><button id="refreshExploreCustom" type="button">Refresh</button></div><div id="exploreCustomList" class="library-list"></div><div class="library-footer"><span id="exploreCustomCount">0 published custom blocks</span><span>Install saves locally.</span></div></div>
 </section>
 
 <div id="loadProgress" class="load-progress" hidden><div class="load-progress-card"><div class="load-progress-mark">◈</div><strong id="loadProgressTitle">Loading script</strong><p id="loadProgressDetail">Preparing project…</p><div class="load-progress-track"><span id="loadProgressBar"></span></div><div id="loadProgressStages" class="load-progress-stages"></div><p id="loadProgressPercent">0%</p></div></div>
