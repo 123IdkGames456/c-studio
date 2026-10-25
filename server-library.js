@@ -226,7 +226,7 @@
       }
       button.disabled = true;
       button.textContent = "Loading…";
-      window.dispatchEvent(new CustomEvent("cstudio:load-server-script", { detail: { entry } }));
+      window.dispatchEvent(new CustomEvent("cstudio:load-server-script", { detail: { entry, button } }));
       return;
     }
     const payload = parsePayload(entry);
