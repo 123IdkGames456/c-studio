@@ -28,7 +28,7 @@ function doGet(e) {
         if (values.length < 2) return false;
         const headers = values[0].map(String);
         const idIndex = headers.indexOf("id");
-        const passwordIndex = headers.indexOf("password");
+        const passwordIndex = headers.findIndex(header => String(header).trim().toLowerCase() === "password");
         for (let r = 1; r < values.length; r++) {
           if (String(values[r][idIndex]) === id) {
             const storedPassword = passwordIndex >= 0 ? String(values[r][passwordIndex] ?? "") : "";
@@ -101,7 +101,7 @@ function doPost(e) {
         return false;
       });
       if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
-      const storedPassword = String(row[headers.indexOf("password")] ?? "");
+      const storedPassword = String(row[headers.findIndex(header => String(header).trim().toLowerCase() === "password")] ?? "");
       if (storedPassword !== password) throw new Error("Password does not match this listing exactly.");
       if (manageAction === "delete") {
         foundSheet.deleteRow(foundRow);
@@ -110,7 +110,7 @@ function doPost(e) {
       if (manageAction === "changePassword") {
         const newPassword = String(data.newPassword ?? "");
         if (!newPassword) throw new Error("A new password is required.");
-        foundSheet.getRange(foundRow, headers.indexOf("password") + 1).setValue(newPassword);
+        foundSheet.getRange(foundRow, headers.findIndex(header => String(header).trim().toLowerCase() === "password") + 1).setValue(newPassword);
         return output_({ ok: true, message: "Password changed." });
       }
       const newName = String(data.name || "").trim();
@@ -189,6 +189,10 @@ function ensureHeaders_(sheet) {
 
     const payload = readPayload_(obj);
     const row = { ...obj };
+    if (row.password === undefined || row.password === null || row.password === "") {
+      const passwordKey = Object.keys(obj).find(key => String(key).trim().toLowerCase() === "password");
+      if (passwordKey) row.password = obj[passwordKey];
+    }
     if (!row.id) row.id = Utilities.getUuid();
     if (!row.type) row.type = sheet.getName() === CUSTOM_BLOCKS_SHEET_NAME ? "custom" : "code";
     if (!row.name) row.name = "Recovered item";
