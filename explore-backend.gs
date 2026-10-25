@@ -225,7 +225,8 @@ function ensureHeaders_(sheet) {
 
   const needsRewrite = oldHeaders.length !== headers.length ||
     headers.some((header, i) => oldHeaders[i] !== header) ||
-    rows.length !== oldValues.length;
+    rows.length !== oldValues.length ||
+    rows.some((row, r) => row.some((value, c) => String(value ?? "") !== String(oldValues[r]?.[c] ?? "")));
   if (needsRewrite) {
     sheet.getRange(1, 1, Math.max(sheet.getLastRow(), rows.length), Math.max(sheet.getLastColumn(), headers.length)).clearContent();
     sheet.getRange(1, 1, rows.length, headers.length).setValues(rows);
