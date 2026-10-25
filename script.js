@@ -21,6 +21,7 @@ function connectedComponentType(n){
  return null;
 }
 function nodeInputs(n){
+ if(n?.type==="foreach"){const d=getDef(n.type),type=n.values?.elementType||"GameObject",mode=n.values?.mode||"Loop";return (d?.dataIn||[]).filter(p=>p.id==="list"||(mode==="GetElement"&&p.id==="index")).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:{...p,type:"int"});}
  if(["listelement","listclosest","listfarthest"].includes(n?.type)){const d=getDef(n.type),type=n.values?.elementType||"GameObject";return (d?.dataIn||[]).map(p=>p.id==="list"?{...p,type:"List<"+type+">"}:p.id==="index"?{...p,type:"int"}:{...p,type});}
  const d=getDef(n?.type);
  if(n?.type==="literal")return [];
@@ -46,6 +47,7 @@ function nodeInputs(n){
 }
 function nodeOutputs(n){
  const d=getDef(n?.type);
+ if(n?.type==="foreach"&&(n.values?.mode||"Loop")!=="GetElement")return [];
  if(n?.type!=="getcomponentvalue")return d?.dataOut||[];
  const ct=connectedComponentType(n);
  if(!ct)return [];
@@ -121,6 +123,7 @@ function actualOutputType(n){
  return d?.valueOut||"dynamic";
 }
 function expectedInputType(n,p){
+ if(n?.type==="foreach"){const type=n.values?.elementType||"GameObject";if(p.id==="list")return "List<"+type+">";if(p.id==="index")return "int";}
  if(["listelement","listclosest","listfarthest"].includes(n.type)){const type=n.values?.elementType||"GameObject";if(p.id==="list")return "List<"+type+">";if(p.id==="index")return "int";if(p.id==="reference")return n.values?.referenceType||"GameObject";}
  if(!n||!p)return "dynamic";
  if(n.type==="if"&&["trueValue","falseValue"].includes(p.id))return n.values?.branchMode||"dynamic";
@@ -353,7 +356,7 @@ function renderNodes(){
   const d=getDef(n.type);if(!d)return;
   const el=document.createElement("div");el.className="node"+(selectedNode===n.id?" selected":"");el.dataset.id=n.id;el.style.left=n.x+"px";el.style.top=n.y+"px";el.style.setProperty("--accent",n.color||d.color);
   let html='<div class="node-head"><span class="node-accent"></span>'+esc(d.name)+'</div>';
-  if(d.flowIn&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"))d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
+  if(d.flowIn&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec")&&!(n.type==="foreach"&&(n.values?.mode||"Loop")==="GetElement"))d.flowIn.forEach(p=>html+='<div class="pin-row flow-input-row exec-input-top"><span class="pin-label"><button class="pin in exec-pin" data-direction="input" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Execution input"></button>'+esc(p)+'</span></div>');
   html+='<div class="node-body">';
   html+='<div class="node-description">'+esc(d.desc)+'</div>';
   (d.fields||[]).forEach(f=>{html+=fieldHtml(n,f)});
@@ -381,7 +384,7 @@ function renderNodes(){
     const outputLabel=outputType==="dynamic"?(n.type==="getvar"?"Choose variable":"Select type"):outputType;
     html+='<div class="pin-row output-row"><span class="output-info"><span class="output-name">Output</span><span class="pin-type-badge output-type-badge">'+esc(outputLabel)+'</span></span><button class="pin out" data-direction="output" data-kind="data" data-type="'+esc(outputType)+'" data-pin="value" title="Drag to connect output"></button></div>';
    }
-   if(d.flowOut&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec"))d.flowOut.forEach(p=>html+='<div class="pin-row flow-output-row"><span class="output-name">'+esc(p)+'</span><button class="pin out exec-pin" data-direction="output" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Drag to connect output"></button></div>');
+   if(d.flowOut&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec")&&!(n.type==="foreach"&&(n.values?.mode||"Loop")==="GetElement"))d.flowOut.forEach(p=>html+='<div class="pin-row flow-output-row"><span class="output-name">'+esc(p)+'</span><button class="pin out exec-pin" data-direction="output" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Drag to connect output"></button></div>');
   html+='</div>';el.innerHTML=html;
   el.addEventListener("click",e=>{if(e.target.closest(".pin, input, select, textarea, button, label"))return;selectedNode=n.id;renderNodes();renderInspector()});
   el.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();selectedNode=n.id;showContextMenu(e.clientX,e.clientY,[{label:"Delete node",className:"danger",action:()=>{nodes=nodes.filter(x=>x.id!==n.id);links=links.filter(l=>l.from!==n.id&&l.to!==n.id);if(selectedNode===n.id)selectedNode=null;renderAll();status("Node deleted")}},{label:"Duplicate node",action:()=>{const copy=addNode(n.type,n.x+15,n.y+15,{...n.values});if(copy){copy.color=n.color||"";selectedNode=copy.id;renderAll();status("Node duplicated · moved 15 px down and right")} }},{label:"Node color",submenu:[{label:"Default",color:"",action:()=>setNodeColor(n,"")},{label:"Blue",color:"#648cff",action:()=>setNodeColor(n,"#648cff")},{label:"Green",color:"#43b581",action:()=>setNodeColor(n,"#43b581")},{label:"Yellow",color:"#e0b64f",action:()=>setNodeColor(n,"#e0b64f")},{label:"Orange",color:"#e98b45",action:()=>setNodeColor(n,"#e98b45")},{label:"Red",color:"#df626c",action:()=>setNodeColor(n,"#df626c")},{label:"Purple",color:"#ad7ce8",action:()=>setNodeColor(n,"#ad7ce8")},{label:"Pink",color:"#e783b6",action:()=>setNodeColor(n,"#e783b6")},{label:"Gray",color:"#8e99aa",action:()=>setNodeColor(n,"#8e99aa")}]}]);});
