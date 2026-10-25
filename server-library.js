@@ -74,7 +74,9 @@
     $("publishSubtitle").textContent = "Publishing: " + String(entry.name || entry.project.projectName || "Untitled script");
     $("publishModal").hidden = false;
     $("googleSignInButton").innerHTML = "";
-    if (window.google && google.accounts && google.accounts.id) {
+    if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") {
+      $("publishStatus").textContent = "Google Sign-In needs setup: add your Google OAuth Client ID to server-library.js and Code.gs.";
+    } else if (window.google && google.accounts && google.accounts.id) {
       google.accounts.id.renderButton($("googleSignInButton"), {
         theme: "outline",
         size: "large",
