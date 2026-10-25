@@ -109,7 +109,6 @@ function componentPropertyType(component,property){
 function actualOutputType(n,outputPin="value"){
  if(n?.type==="custominput"||n?.type==="customoutput")return (n.values?.ports||[]).find(p=>p.id===outputPin)?.type||"dynamic";
  if(String(n?.type||"").startsWith("customblock_"))return getDef(n.type)?.dataOut?.find(p=>p.id===outputPin)?.type||"dynamic";
- if(String(n?.type||"").startsWith("customblock_"))return getDef(n.type)?.dataOut?.find(p=>p.id===outputPin)?.type||"dynamic";
   if(n?.type==="foreach")return n.values?.elementType||"GameObject";
  if(["listelement","listclosest","listfarthest"].includes(n?.type))return n.values?.elementType||"GameObject";
  if(n?.type==="getfirsttag")return "GameObject";
@@ -206,7 +205,7 @@ function removeIncompatibleLinksForOutput(nodeId){
  links=links.filter(l=>{
   if(l.kind!=="data"||l.from!==nodeId)return true;
   const target=getNode(l.to),input=nodeInputs(target).find(p=>p.id===l.toPin);
-  let fromType=actualOutputType(n);
+  let fromType=actualOutputType(n,l.fromPin);
   if(n?.type==="getcomponentvalue")fromType=nodeOutputs(n).find(p=>p.id===l.fromPin)?.type||"none";
   return !!input&&inputActive(target,input)&&typesCompatible(fromType,expectedInputType(target,input));
  });
@@ -711,11 +710,11 @@ function pruneIncompatibleLinks(){
   if(l.kind!=="data")return true;
   const source=getNode(l.from),target=getNode(l.to),td=getDef(target?.type);
   const input=nodeInputs(target).find(p=>p.id===l.toPin);
-  return !!source&&!!input&&inputActive(target,input)&&typesCompatible(actualOutputType(source,wireDrag.direction==="output"?wireDrag.pin:pin.dataset.pin),expectedInputType(target,input));
+  return !!source&&!!input&&inputActive(target,input)&&typesCompatible(actualOutputType(source,l.fromPin),expectedInputType(target,input));
  }
  );
 }
-function renderAll(){if(customEditingId)saveCurrentCustomDefinition();pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
+function renderAll(){if(customEditingId)saveCurrentCustomDefinition();pruneIncompatibleLinks();if(customEditingId)saveCurrentCustomDefinition();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
 let canvasPan=null;
 $("workspace").addEventListener("pointerdown",e=>{
