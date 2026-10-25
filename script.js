@@ -916,32 +916,46 @@ async function publishItem(type,item){
  if(!dialog)return;
  const {name,author,password}=dialog;
  const previousIds=new Set(exploreItems.map(x=>String(x.id)));
+ const serializedPayload=JSON.stringify(item.payload);
+ const maxPayloadChars=225000;
+ if(serializedPayload.length>maxPayloadChars){
+  const message="Publish failed: this item contains "+serializedPayload.length.toLocaleString()+" characters of data, but the five Google Sheets payload cells support up to "+maxPayloadChars.toLocaleString()+". Reduce the project size and try again.";
+  status(message);alert(message);return;
+ }
  $("modal").hidden=true;closeExploreMenus();
- showExploreProgress("Publishing "+label,"Step 1/4 · Preparing your item…",8);
+ showExploreProgress("Publishing "+label,"Step 1/5 · Preparing the project and password…",5);
  status("Publishing "+label+"…");
  try{
-  showExploreProgress("Publishing "+label,"Step 2/4 · Sending the item and password hash request…",25);
+  showExploreProgress("Publishing "+label,"Step 2/5 · Sending item data and password securely for hashing…",18);
   await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,password,payload:item.payload})});
-  showExploreProgress("Publishing "+label,"Step 3/4 · Waiting for Google Sheets to confirm…",45);
-  let lastError=null,published=null;
-  for(let attempt=1;attempt<=8;attempt++){
-   showExploreProgress("Publishing "+label,"Checking Google Sheets… attempt "+attempt+" of 8.",45+attempt*6);
-   await new Promise(resolve=>setTimeout(resolve,1250));
+  showExploreProgress("Publishing "+label,"Step 3/5 · Checking that Google Sheets saved the item…",35);
+  let lastError=null,published=null,verified=false,payloadMatches=false;
+  for(let attempt=1;attempt<=10;attempt++){
+   showExploreProgress("Publishing "+label,"Checking saved data and password… attempt "+attempt+" of 10.",35+attempt*5);
+   await new Promise(resolve=>setTimeout(resolve,1100));
    try{
     const data=await jsonpList(endpoint);
     if(!data||data.ok===false)throw Error(data?.error||"Google Apps Script returned an error.");
     const items=Array.isArray(data.items)?data.items:[];
     published=items.find(x=>!previousIds.has(String(x.id))&&x.type===kind&&String(x.name||"").trim()===name&&String(x.author||"").trim()===author)||null;
     exploreItems=items;
-    if(published)break;
+    if(!published)continue;
+    showExploreProgress("Publishing "+label,"Step 4/5 · Verifying the exact password against the saved sheet record…",88);
+    const check=await jsonpRequest(endpoint,{action:"verify",id:published.id,password});
+    verified=!!check&&check.ok===true&&check.valid===true;
+    payloadMatches=JSON.stringify(published.payload)===serializedPayload;
+    if(verified&&payloadMatches)break;
+    if(!verified)throw Error(check?.error||"The saved password did not pass verification.");
+    if(!payloadMatches)throw Error("The saved project data does not match the item that was sent.");
    }catch(e){lastError=e}
   }
-  if(published){
-   showExploreProgress("Publishing complete","Published “"+name+"” successfully. Returning to the canvas…",100);
-   status("Published successfully: "+name);
-   await new Promise(resolve=>setTimeout(resolve,900));
+  if(published&&verified&&payloadMatches){
+   showExploreProgress("Publishing complete","Step 5/5 · Confirmed: project data and password are saved correctly. Returning to the canvas…",100);
+   status("Publish successful: "+name+" · data and password verified in Google Sheets.");
+   await new Promise(resolve=>setTimeout(resolve,1200));
   }else{
-   const message="Publish failed or could not be confirmed. "+(lastError?"Last check error: "+lastError.message+". ":"")+"Check that the latest explore-backend.gs is deployed as a new version and that the web app is accessible to anyone with the link.";
+   const sizeHint=serializedPayload.length>225000?" The item exceeds the five-cell storage limit. ":"";
+   const message="Publish failed: Google Sheets did not confirm both the full project data and the exact password."+sizeHint+(lastError?" Last error: "+lastError.message+". ":"")+"Check the Apps Script execution log and make sure the latest explore-backend.gs is deployed as a new version with access set to anyone with the link.";
    showExploreProgress("Publishing failed",message,100);
    status(message);alert(message);
   }
