@@ -3,7 +3,7 @@ const CODES_SHEET_NAME = "Published Codes";
 const CUSTOM_BLOCKS_SHEET_NAME = "Published Custom Blocks";
 const PAYLOAD_PARTS = ["payload1", "payload2", "payload3", "payload4", "payload5"];
 const PAYLOAD_CHUNK_SIZE = 45000;
-const HEADERS = ["id", "type", "name", "description", "author", "createdAt", ...PAYLOAD_PARTS, "username"];
+const HEADERS = ["id", "type", "name", "description", "author", "createdAt", ...PAYLOAD_PARTS, "username", "password"];
 
 function setupExploreSheets() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -20,26 +20,26 @@ function doGet(e) {
     const sheets = setupAndGetSheets_();
     if (params.action === "verify") {
       const id = String(params.id || "");
-      const username = String(params.username || "");
-      if (!id || !username) throw new Error("A listing ID and username are required.");
+      const password = String(params.password ?? "");
+      if (!id || !password) throw new Error("A listing ID and password are required.");
       let found = null;
       sheets.some(sheet => {
         const values = sheet.getDataRange().getValues();
         if (values.length < 2) return false;
         const headers = values[0].map(String);
         const idIndex = headers.indexOf("id");
-        const usernameIndex = headers.indexOf("username");
+        const passwordIndex = headers.indexOf("password");
         for (let r = 1; r < values.length; r++) {
           if (String(values[r][idIndex]) === id) {
-            const storedUsername = String(values[r][usernameIndex] || values[r][headers.indexOf("author")] || "");
-            found = storedUsername === username;
+            const storedPassword = passwordIndex >= 0 ? String(values[r][passwordIndex] ?? "") : "";
+            found = storedPassword === password;
             return true;
           }
         }
         return false;
       });
       if (found === null) throw new Error("This published item was not found. Refresh Explore and try again.");
-      return output_({ ok: true, valid: found, error: found ? "" : "Username does not match this listing exactly." }, params.callback);
+      return output_({ ok: true, valid: found, error: found ? "" : "Password does not match this listing exactly." }, params.callback);
     }
 
     if (params.action !== "list") {
@@ -83,10 +83,10 @@ function doPost(e) {
 
     if (data.action === "manage") {
       const id = String(data.id || "");
-      const username = String(data.username || "");
+      const password = String(data.password ?? "");
       const manageAction = String(data.manageAction || "");
-      if (!id || !username) throw new Error("A listing ID and username are required.");
-      if (!["rename", "delete"].includes(manageAction)) throw new Error("Unsupported management action.");
+      if (!id || !password) throw new Error("A listing ID and password are required.");
+      if (!["rename", "delete", "changePassword"].includes(manageAction)) throw new Error("Unsupported management action.");
       const sheets = setupAndGetSheets_();
       let foundSheet = null, foundRow = -1, headers = null, row = null;
       sheets.some(sheet => {
@@ -101,11 +101,17 @@ function doPost(e) {
         return false;
       });
       if (!foundSheet) throw new Error("Published item was not found. It may already have been removed.");
-      const storedUsername = String(row[headers.indexOf("username")] || row[headers.indexOf("author")] || "");
-      if (storedUsername !== username) throw new Error("Username does not match this listing exactly.");
+      const storedPassword = String(row[headers.indexOf("password")] ?? "");
+      if (storedPassword !== password) throw new Error("Password does not match this listing exactly.");
       if (manageAction === "delete") {
         foundSheet.deleteRow(foundRow);
         return output_({ ok: true, message: "Listing removed. Existing local copies are unaffected." });
+      }
+      if (manageAction === "changePassword") {
+        const newPassword = String(data.newPassword ?? "");
+        if (!newPassword) throw new Error("A new password is required.");
+        foundSheet.getRange(foundRow, headers.indexOf("password") + 1).setValue(newPassword);
+        return output_({ ok: true, message: "Password changed." });
       }
       const newName = String(data.name || "").trim();
       if (!newName) throw new Error("A new public name is required.");
@@ -116,8 +122,8 @@ function doPost(e) {
     if (data.action !== "publish") throw new Error("Unsupported action.");
     if (!["code", "custom"].includes(data.type)) throw new Error("Type must be code or custom.");
     if (!String(data.name || "").trim()) throw new Error("A published name is required.");
-    const username = String(data.username || "").trim();
-    if (!username) throw new Error("A username is required.");
+    const password = String(data.password ?? "");
+    if (!password) throw new Error("A password is required.");
     if (!data.payload || typeof data.payload !== "object") throw new Error("A valid item payload is required.");
 
     const serialized = JSON.stringify(data.payload);
@@ -134,8 +140,9 @@ function doPost(e) {
       type: data.type,
       name: String(data.name).trim().slice(0, 120),
       description: String(data.description || "").trim().slice(0, 500),
-      author: username.slice(0, 80),
-      username: username.slice(0, 80),
+      author: String(data.author || "C-Studio user").slice(0, 80),
+      username: String(data.author || "C-Studio user").slice(0, 80),
+      password: password,
       createdAt: new Date().toISOString()
     };
     PAYLOAD_PARTS.forEach((key, index) => record[key] = serialized.slice(index * PAYLOAD_CHUNK_SIZE, (index + 1) * PAYLOAD_CHUNK_SIZE));
