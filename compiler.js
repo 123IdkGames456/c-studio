@@ -93,6 +93,8 @@ function compile(inputNodes,inputLinks,inputVars,className){
    if(["getparent","getchild","findchild"].includes(n.type))return "GameObject";
    if(["getcomponentchildren","getcomponentparent"].includes(n.type))return n.values?.componentType||"Rigidbody";
    if(["getvelocity","vectorcross","vectornormalize"].includes(n.type))return "Vector3";
+   if(n.type==="devicefps")return "float";
+   if(n.type==="devicelocaltime"||n.type==="deviceutctime")return "string";
    if(n.type==="randomsphere")return "Vector3";
    if(n.type==="isgrounded")return "bool";
    if(n.type==="listcount")return "int";
@@ -270,7 +272,10 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="getchild"){const t=valueForInput(n,"target",path,"GameObject"),i=valueForInput(n,"index",path,"int");expression="("+t+" != null && "+i+" >= 0 && "+i+" < "+t+".transform.childCount ? "+t+".transform.GetChild("+i+").gameObject : null)";sourceType="GameObject";
    }else if(n.type==="findchild"){const t=valueForInput(n,"target",path,"GameObject"),nm=escString(n.values?.name||"Child");expression="("+t+" != null && "+t+".transform.Find("+nm+") != null ? "+t+".transform.Find("+nm+").gameObject : null)";sourceType="GameObject";
    }else if(n.type==="getcomponentchildren"||n.type==="getcomponentparent"){const ct=n.values?.componentType||"Rigidbody",t=valueForInput(n,"target",path,"GameObject");expression="("+t+" != null ? "+t+".GetComponent"+(n.type==="getcomponentchildren"?"InChildren":"InParent")+"<"+ct+">() : null)";sourceType=ct;
-   }else if(n.type==="randomsphere"){expression="UnityEngine.Random.insideUnitSphere";sourceType="Vector3";
+   }else if(n.type==="devicefps"){expression="(Time.unscaledDeltaTime > 0f ? 1f / Time.unscaledDeltaTime : 0f)";sourceType="float";
+  }else if(n.type==="devicelocaltime"){expression='System.DateTime.Now.ToString("HH:mm:ss")';sourceType="string";
+  }else if(n.type==="deviceutctime"){expression='System.DateTime.UtcNow.ToString("HH:mm:ss")';sourceType="string";
+  }else if(n.type==="randomsphere"){expression="UnityEngine.Random.insideUnitSphere";sourceType="Vector3";
    }else if(n.type==="isgrounded"){const c=valueForInput(n,"controller",path,"CharacterController");expression="("+c+" != null && "+c+".isGrounded)";sourceType="bool";
    }else if(n.type==="getvelocity"){const b=valueForInput(n,"body",path,"Rigidbody");expression="("+b+" != null ? "+b+".velocity : Vector3.zero)";sourceType="Vector3";
    }else if(n.type==="raycast"||n.type==="spherecast"){const o=valueForInput(n,"origin",path,"Vector3"),d=valueForInput(n,"direction",path,"Vector3"),max=cleanNumber(n.values?.maxDistance??(n.type==="raycast"?"100":"10"),"float"),radius=cleanNumber(n.values?.radius??"0.5","float"),isSphere=n.type==="spherecast",call=isSphere?"Physics.SphereCast(__o, "+radius+", __d, out __h, __max)":"Physics.Raycast(__o, __d, out __h, __max)",mode=n.type==="raycast"?(n.values?.tagMode||"none"):"none",tag=valueForInput(n,"tag",new Set(path),"string"),tags=valueForInput(n,"tags",new Set(path),"List<string>"),tagCheck=mode==="tag"?"__h.collider != null && __h.collider.CompareTag("+tag+")":mode==="tags"?"__h.collider != null && "+tags+" != null && "+tags+".Contains(__h.collider.tag)":"true",validHit="__didHit && ("+tagCheck+")";if(outputPin==="hit"||outputPin==="hitObject"||outputPin==="point"){const result="((Func<RaycastHit>)(() => { Vector3 __o = "+o+"; Vector3 __d = "+d+"; float __max = "+max+"; RaycastHit __h; bool __didHit = "+call+"; if (!("+validHit+")) return default(RaycastHit); return __h; }))()";sourceType=outputPin==="hit"?"RaycastHit":outputPin==="hitObject"?"GameObject":"Vector3";expression=outputPin==="hit"?result:outputPin==="hitObject"?"("+result+".collider != null ? "+result+".collider.gameObject : null)":result+".point";}else{expression="((Func<bool>)(() => { Vector3 __o = "+o+"; Vector3 __d = "+d+"; float __max = "+max+"; RaycastHit __h; bool __didHit = "+call+"; return "+validHit+"; }))()";sourceType="bool";}
