@@ -301,3 +301,7 @@ button:active{transform:translateY(1px)}
 .custom-port-editor input[data-port-field="default"]{grid-column:1/3}
 #exitCustomEditor{background:#3a2c53;border-color:#795ca8;color:#f2e7ff;font-weight:800}
 #exitCustomEditor[hidden]{display:none}
+
+
+/* Separate code and custom-block collections in the Library modal. */
+.library-tabs{flex:none}.library-tab{transition:background .15s,border-color .15s,color .15s}.library-view{flex:1;min-height:0}.library-view[hidden]{display:none!important}#libraryCustomView .library-footer{justify-content:space-between}#libraryCustomView .library-footer span:last-child{color:#8fa3c5;font-size:10px;text-align:right}.library-entry .server-entry-title{padding:1px 0}.library-entry .server-entry-title strong{font-size:13px}.library-entry-actions button[data-custom-action="edit"]{background:#293a5b;border-color:#536b9c;color:#f1f5ff}
