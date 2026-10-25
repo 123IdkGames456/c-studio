@@ -791,7 +791,7 @@ $("miniMapToggle").addEventListener("click",()=>{
 });
 
 function snapshot(){return {projectName:$("projectName").value,nodes,links,variables,nextNode,nextVariable,customBlocks:JSON.parse(JSON.stringify(customBlocks))}}
-function loadState(s){if(!s||!Array.isArray(s.nodes))throw new Error("This JSON is not a Blueprint project.");variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
+function loadState(s){if(!s||!Array.isArray(s.nodes))throw new Error("This JSON is not a Blueprint project.");if(Array.isArray(s.customBlocks)){customBlocks=JSON.parse(JSON.stringify(s.customBlocks));saveCustomBlocks();syncCustomDefs()}variables=s.variables||[];nodes=s.nodes.map(n=>{const d=getDef(n.type),defaults={};(d?.fields||[]).forEach(f=>defaults[f.id]=f.default??(f.options?f.options[0][0]:""));return {...n,values:{...defaults,...(n.values||{})}}});links=s.links||[];nextNode=s.nextNode||Math.max(0,...nodes.map(n=>Number(n.id)||0))+1;nextVariable=s.nextVariable||variables.length+1;$("projectName").value=s.projectName||"My Blueprint Project";selectedNode=nodes[0]?.id??null;renderAll()}
 
 const templates=[
  {id:"rotate",name:"Rotating Cube",description:"Rotate the object smoothly around its Y axis.",build(){
@@ -849,7 +849,7 @@ $("blockSearch").addEventListener("input",renderBlocks);
 $("addVariable").onclick=$("addVariableSide").onclick=()=>openVariableModal();
 $("toggleVariables").onclick=()=>{$("variablesPanel").hidden=!$("variablesPanel").hidden};
 $("closeVariables").onclick=()=>{$("variablesPanel").hidden=true};
-$("modalClose").onclick=$("modalCancel").onclick=()=>{$("modal").hidden=true};
+$("modalClose").onclick=$("modalCancel").onclick=()=>{$("modal").hidden=true};$("exitCustomEditor").onclick=exitCustomEditor;
 $("starterExample").onclick=example;
  $("loadTemplate").onclick=openTemplates;
 $("newProject").onclick=()=>{if(confirm("Create a new project? Unsaved changes in the current graph will be replaced.")){nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value="My Blueprint Project";renderAll();status("New project")}};
