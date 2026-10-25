@@ -891,13 +891,14 @@ function renderExplore(){const q1=($("exploreCodesSearch")?.value||"").trim().to
 function closeExploreMenus(){["libraryPanel","explorePanel"].forEach(id=>{const el=$(id);if(el)el.hidden=true});}
 function showExploreProgress(title,detail,percent){const panel=$("loadProgress");panel.hidden=false;$("loadProgressTitle").textContent=title;$("loadProgressDetail").textContent=detail;$("loadProgressBar").style.width=Math.max(0,Math.min(100,percent))+"%";$("loadProgressStages").textContent="";$("loadProgressPercent").textContent=Math.max(0,Math.min(100,percent))+"%";}
 function finishExploreProgress(){const panel=$("loadProgress");panel.hidden=true;closeExploreMenus();$("modal").hidden=true;}
-function openExploreModal(title,body,confirmText="Save"){
+function openExploreModal(title,body,confirmText="Save",validate=null){
  closeExploreMenus();
  return new Promise(resolve=>{
   const modal=$("modal"),confirmButton=$("modalConfirm"),cancelButton=$("modalCancel"),closeButton=$("modalClose");
-  $("modalTitle").textContent=title;$("modalBody").innerHTML=body;confirmButton.textContent=confirmText;confirmButton.hidden=false;cancelButton.textContent="Cancel";modal.hidden=false;
+  $("modalTitle").textContent=title;$("modalBody").innerHTML=body;confirmButton.textContent=confirmText;confirmButton.hidden=false;confirmButton.disabled=false;cancelButton.textContent="Cancel";modal.hidden=false;
   let finished=false;const finish=value=>{if(finished)return;finished=true;modal.hidden=true;confirmButton.onclick=null;cancelButton.onclick=null;closeButton.onclick=null;resolve(value)};
-  confirmButton.onclick=()=>finish({confirmed:true});cancelButton.onclick=()=>finish(null);closeButton.onclick=()=>finish(null);
+  confirmButton.onclick=()=>{if(validate){const value=validate();if(value===false)return;finish(value)}else finish({confirmed:true})};
+  cancelButton.onclick=()=>finish(null);closeButton.onclick=()=>finish(null);
   const first=$("exploreModalFirstInput");if(first)first.focus();
  });
 }
@@ -906,17 +907,20 @@ async function publishItem(type,item){
  const endpoint=exploreEndpoint();
  if(!endpoint){const message="Publish failed: no Google Apps Script backend URL is configured.";status(message);alert(message);return}
  const kind=type==="code"?"code":"custom",label=kind==="code"?"code":"custom block";
- const dialog=await openExploreModal("Publish "+(kind==="code"?"Code":"Custom Block"),'<p class="subtle">Choose the public name and owner password. You will need this password to rename or remove the listing.</p><div class="form-row"><label for="exploreModalFirstInput">Public name</label><input id="exploreModalFirstInput" maxlength="120" value="'+esc(item.name||"Untitled")+'" placeholder="Name shown in Explore"></div><div class="form-row"><label for="explorePublishAuthor">Publisher name</label><input id="explorePublishAuthor" maxlength="80" value="C-Studio user" placeholder="Name shown publicly"></div><div class="form-row"><label for="explorePublishPassword">Owner password (minimum 6 characters)</label><input id="explorePublishPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Choose a password"></div><p class="subtle">Your password is stored as a salted hash in the sheet, not as readable text. Anyone who already installed an item keeps their local copy if you later remove the listing.</p>',"Publish");
+ const dialog=await openExploreModal("Publish "+(kind==="code"?"Code":"Custom Block"),'<p class="subtle">Choose the public name and owner password. You will need this exact password to rename, remove, or change the password for this listing.</p><div class="form-row"><label for="exploreModalFirstInput">Public name</label><input id="exploreModalFirstInput" maxlength="120" value="'+esc(item.name||"Untitled")+'" placeholder="Name shown in Explore"></div><div class="form-row"><label for="explorePublishAuthor">Publisher name</label><input id="explorePublishAuthor" maxlength="80" value="C-Studio user" placeholder="Name shown publicly"></div><div class="form-row"><label for="explorePublishPassword">Owner password (at least 1 character)</label><input id="explorePublishPassword" type="password" autocomplete="new-password" placeholder="Choose a password"></div><p id="explorePublishError" role="alert" style="color:#ff7777;min-height:1.2em"></p><p class="subtle">The password is saved in the sheet as a salted hash, not readable text. Anyone who already installed an item keeps their local copy if you later remove the listing.</p>',"Publish",()=>{
+  const name=($("exploreModalFirstInput")?.value||"").trim(),author=($("explorePublishAuthor")?.value||"C-Studio user").trim()||"C-Studio user",password=$("explorePublishPassword")?.value||"",error=$("explorePublishError");
+  if(!name){error.textContent="Enter a public name before publishing.";return false}
+  if(password.length<1){error.textContent="Enter a password. Passwords can be one character or longer.";return false}
+  return {confirmed:true,name,author,password};
+ });
  if(!dialog)return;
- const name=($("exploreModalFirstInput")?.value||"").trim(),author=($("explorePublishAuthor")?.value||"C-Studio user").trim()||"C-Studio user",password=$("explorePublishPassword")?.value||"";
- if(!name){alert("Enter a public name.");return}
- if(password.length<6){alert("Choose a password with at least 6 characters.");return}
+ const {name,author,password}=dialog;
  const previousIds=new Set(exploreItems.map(x=>String(x.id)));
  $("modal").hidden=true;closeExploreMenus();
  showExploreProgress("Publishing "+label,"Step 1/4 · Preparing your item…",8);
  status("Publishing "+label+"…");
  try{
-  showExploreProgress("Publishing "+label,"Step 2/4 · Sending the item and password securely…",25);
+  showExploreProgress("Publishing "+label,"Step 2/4 · Sending the item and password hash request…",25);
   await fetch(endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"publish",type:kind,name,description:kind==="code"?"C-Studio Blueprint project":"Reusable C-Studio custom block",author,password,payload:item.payload})});
   showExploreProgress("Publishing "+label,"Step 3/4 · Waiting for Google Sheets to confirm…",45);
   let lastError=null,published=null;
@@ -933,16 +937,16 @@ async function publishItem(type,item){
    }catch(e){lastError=e}
   }
   if(published){
-   showExploreProgress("Publishing complete","Published “"+name+"” successfully.",100);
+   showExploreProgress("Publishing complete","Published “"+name+"” successfully. Returning to the canvas…",100);
    status("Published successfully: "+name);
    await new Promise(resolve=>setTimeout(resolve,900));
   }else{
-   const message="Publish failed or could not be confirmed. "+(lastError?"Last check error: "+lastError.message+". ":"")+"Check the Apps Script deployment, access permissions, and execution log.";
+   const message="Publish failed or could not be confirmed. "+(lastError?"Last check error: "+lastError.message+". ":"")+"Check that the latest explore-backend.gs is deployed as a new version and that the web app is accessible to anyone with the link.";
    showExploreProgress("Publishing failed",message,100);
    status(message);alert(message);
   }
  }catch(e){
-  const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Apps Script deployment.";
+  const message="Publish failed: "+(e?.message||String(e))+". Check your internet connection and the Google Apps Script deployment.";
   showExploreProgress("Publishing failed",message,100);status(message);alert(message);
  }finally{
   finishExploreProgress();
@@ -959,7 +963,7 @@ async function manageExploreItem(id){
  const doManage=async(action,value)=>{
   if(action==="delete"&&!confirm("Remove this listing from Explore? Existing installed copies will remain."))return;
   if(action==="rename"&&(!value||value.trim()===item.name)){alert("Enter a different public name.");return}
-  if(action==="changePassword"&&(!value||value.length<6)){alert("Choose a new password with at least 6 characters.");return}
+  if(action==="changePassword"&&(!value||value.length<1)){alert("Enter a new password. Passwords can be one character or longer.");return}
   const connection=$("exploreConnectionStatus");connection.textContent=action==="delete"?"Removing listing…":action==="rename"?"Renaming listing…":"Changing owner password…";status(connection.textContent);
   try{
    await fetch(exploreEndpoint(),{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"manage",manageAction:action,id:item.id,password,newPassword:action==="changePassword"?value:undefined,name:action==="rename"?value?.trim():undefined})});
