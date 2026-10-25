@@ -214,7 +214,10 @@ function compile(inputNodes,inputLinks,inputVars,className){
   let expression,sourceType=nodeType(n);
   if(n.type==="literal"){
    const type=n.values?.type||"int",raw=n.values?.value??"0";
-   if(type==="string")expression=escString(raw);
+   if(/^List<.+>$/.test(type)){
+    const elementType=type.slice(5,-1);let items=[];try{const parsed=JSON.parse(raw||"[]");if(Array.isArray(parsed))items=parsed;}catch{}
+    expression="new List<"+elementType+"> { "+items.map(item=>{const value=String(item??"").trim();if(elementType==="string")return escString(value);if(elementType==="bool")return value==="true"?"true":"false";if(value==="null")return "null";if(numericTypes.has(elementType))return cleanNumber(value,elementType);return typedFallback(value,elementType);}).join(", ")+" }";sourceType=type;
+   }else if(type==="string")expression=escString(raw);
    else if(type==="null")expression="null";
    else if(type==="bool")expression=raw==="true"||raw===true?"true":"false";
    else if(numericTypes.has(type)){
