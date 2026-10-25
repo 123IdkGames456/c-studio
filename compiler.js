@@ -491,6 +491,12 @@ function compile(inputNodes,inputLinks,inputVars,className){
    }else if(n.type==="listadd"||n.type==="listremove"||n.type==="listclear"){
     const t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",new Set(),"List<"+t+">");if(n.type==="listadd")out.push(p+"if ("+l+" != null) "+l+".Add("+valueForInput(n,"item",new Set(),t)+");");else if(n.type==="listremove")out.push(p+"if ("+l+" != null) "+l+".Remove("+valueForInput(n,"item",new Set(),t)+");");else out.push(p+"if ("+l+" != null) "+l+".Clear();");
    }else if(n.type==="setparent"){const t=valueForInput(n,"target",new Set(),"GameObject"),pl=dataLink(n.id,"parent"),par=pl?valueExpr(pl.from,new Set(),"GameObject",pl.fromPin):"null";out.push(p+"if ("+t+" != null) "+t+".transform.SetParent("+par+" != null ? "+par+".transform : null);");
+   }else if(n.type==="debug"){
+    const level=n.values?.level||"log";
+    const method=level==="warning"?"LogWarning":level==="error"?"LogError":"Log";
+    const messageLink=dataLink(n.id,"value");
+    const message=messageLink?valueExpr(messageLink.from,new Set(),"",messageLink.fromPin):escString(n.values?.message??"Hello from Blueprint Studio");
+    out.push(p+"Debug."+method+"("+message+");");
    }else if(n.type==="setvar"){
     const v=findVar(n.values?.variable);
     if(!v)report("Choose a variable in Set Variable.");
