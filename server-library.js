@@ -68,36 +68,38 @@
   let publishTimeout = null;
   function showPublishModal(entry) {
     pendingPublishEntry = entry;
-    $("publishPassword").value = "";
-    $("publishPassword").disabled = false;
-    $("publishSubmit").disabled = false;
-    $("publishCancel").disabled = false;
-    $("publishClose").disabled = false;
-    $("publishForm").hidden = false;
     $("publishLoading").hidden = true;
     $("publishStatus").className = "publish-status";
-    $("publishStatus").textContent = "Enter the library password to publish this script.";
+    $("publishStatus").textContent = "Sign in with Google to publish this script. Your Google account name will be shown in Explore.";
     $("publishSubtitle").textContent = "Publishing: " + String(entry.name || entry.project.projectName || "Untitled script");
     $("publishModal").hidden = false;
-    setTimeout(() => $("publishPassword").focus(), 30);
+    $("googleSignInButton").innerHTML = "";
+    if (window.google && google.accounts && google.accounts.id) {
+      google.accounts.id.renderButton($("googleSignInButton"), {
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "rectangular",
+        width: 260
+      });
+    } else {
+      $("publishStatus").textContent = "Google Sign-In is not configured yet. Set GOOGLE_CLIENT_ID in server-library.js and Code.gs.";
+    }
   }
   function closePublishModal() {
     if (publishRequestId) return;
     $("publishModal").hidden = true;
     pendingPublishEntry = null;
   }
-  function publishFailure(message, wrongPassword = false) {
+  function publishFailure(message) {
     clearTimeout(publishTimeout);
     publishRequestId = null;
     $("publishLoading").hidden = true;
-    $("publishForm").hidden = false;
-    $("publishPassword").disabled = false;
-    $("publishSubmit").disabled = false;
+    $("googleSignInButton").hidden = false;
     $("publishCancel").disabled = false;
     $("publishClose").disabled = false;
     $("publishStatus").className = "publish-status error";
-    $("publishStatus").textContent = wrongPassword ? "Incorrect password. Please try again." : message;
-    if (wrongPassword) { $("publishPassword").value = ""; $("publishPassword").focus(); }
+    $("publishStatus").textContent = message;
   }
   function publishSuccess() {
     clearTimeout(publishTimeout);
@@ -107,8 +109,8 @@
     $("exploreStatus").textContent = "Script published successfully. Refreshing server library…";
     loadServerEntries();
   }
-  function submitPublish(password) {
-    if (!pendingPublishEntry || publishRequestId) return;
+  function submitPublish(idToken) {
+    if (!pendingPublishEntry || publishRequestId || !idToken) return;
     const local = pendingPublishEntry;
     const serverEntry = {
       name: String(local.name || local.project.projectName || "Untitled script"),
@@ -118,11 +120,10 @@
     };
     publishRequestId = "cstudio-" + Date.now() + "-" + Math.random().toString(36).slice(2);
     const requestId = publishRequestId;
-    $("publishForm").hidden = true;
+    $("googleSignInButton").hidden = true;
     $("publishLoading").hidden = false;
     $("publishStatus").className = "publish-status";
     $("publishStatus").textContent = "";
-    $("publishSubmit").disabled = true;
     $("publishCancel").disabled = true;
     $("publishClose").disabled = true;
     let frame = document.getElementById("cstudio-publish-frame");
@@ -138,7 +139,7 @@
     form.action = SERVER_LIBRARY_URL;
     form.target = frame.name;
     form.hidden = true;
-    const fields = { action: "save", entry: JSON.stringify(serverEntry), password, requestId };
+    const fields = { action: "save", entry: JSON.stringify(serverEntry), idToken, requestId };
     Object.entries(fields).forEach(([name, value]) => {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -151,31 +152,40 @@
       if (!data || data.type !== "cstudio-publish-result" || data.requestId !== requestId) return;
       window.removeEventListener("message", onPublishMessage);
       if (data.ok === true) publishSuccess();
-      else if (data.code === "WRONG_PASSWORD" || /incorrect.*password|wrong password/i.test(String(data.message || ""))) publishFailure("", true);
-      else publishFailure("The password was accepted, but the server could not save the script. " + String(data.message || "Check the server sheet, permissions, and Apps Script logs."));
+      else publishFailure(String(data.message || "The server could not save the script."));
     });
     document.body.appendChild(form);
     form.submit();
     form.remove();
     publishTimeout = setTimeout(() => {
       if (publishRequestId !== requestId) return;
-      publishFailure("No result came back from the server. Update Code.gs so its save response sends a cstudio-publish-result message, then redeploy the web app.");
+      publishFailure("No result came back from the server. Confirm Code.gs is updated and redeployed.");
     }, 18000);
   }
+
+  function handleGoogleCredential(response) {
+    if (!response || !response.credential) {
+      publishFailure("Google Sign-In did not return a credential. Please try again.");
+      return;
+    }
+    submitPublish(response.credential);
+  }
+
+  const GOOGLE_CLIENT_ID = "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE";
+  function initializeGoogleSignIn() {
+    if (!window.google || !google.accounts || !google.accounts.id) return;
+    if (GOOGLE_CLIENT_ID === "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE") return;
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+      auto_select: false
+    });
+  }
+  window.addEventListener("load", initializeGoogleSignIn);
   window.addEventListener("cstudio:publish-script", event => {
     const local = event.detail?.entry;
     if (!local?.project) return;
     showPublishModal(local);
-  });
-  $("publishForm")?.addEventListener("submit", event => {
-    event.preventDefault();
-    const password = $("publishPassword").value;
-    if (!password) {
-      $("publishStatus").className = "publish-status error";
-      $("publishStatus").textContent = "Enter the library password first.";
-      return;
-    }
-    submitPublish(password);
   });
   $("publishCancel")?.addEventListener("click", closePublishModal);
   $("publishClose")?.addEventListener("click", closePublishModal);
