@@ -609,6 +609,10 @@ function compile(inputNodes,inputLinks,inputVars,className){
   if(!events.length)continue;
   methods.push("    private void "+method+"("+signature+")","    {");
   for(const ev of events){
+   if(["triggerenter","triggerstay","triggerexit"].includes(type)){
+    const show=dataLink(ev.id,"showDebug")?valueForInput(ev,"showDebug",new Set([ev.id]),"bool"):(ev.values?.showDebug===true||ev.values?.showDebug==="true"?"true":"false");
+    methods.push("        if ("+show+")","        {","            Collider[] __blueprintOwnColliders = GetComponents<Collider>();","            foreach (Collider __blueprintCollider in __blueprintOwnColliders)","                if (__blueprintCollider != null) __BlueprintDrawBounds(__blueprintCollider.bounds, Color.magenta);","            if (other != null) __BlueprintDrawBounds(other.bounds, Color.yellow);","        }");
+   }
    const next=connected(ev.id,"Then");
    if(next)methods.push(...emitFlow(next,2,new Set([ev.id])));
   }
@@ -628,7 +632,9 @@ function compile(inputNodes,inputLinks,inputVars,className){
  });
  if(extraMethods.length)methods.push(...extraMethods);
  const visualPhysicsNodes=nodes.some(n=>["raycast","spherecast","overlapsphere"].includes(n.type));
+ const visualTriggerNodes=nodes.some(n=>["triggerenter","triggerstay","triggerexit"].includes(n.type));
  if(visualPhysicsNodes)methods.push("    private void __BlueprintDrawWireSphere(Vector3 center, float radius, Color color)","    {","        const int segments = 24;","        float step = 360f / segments;","        for (int i = 0; i < segments; i++)","        {","            float a = i * step * Mathf.Deg2Rad;","            float b = (i + 1) * step * Mathf.Deg2Rad;","            float ax = Mathf.Cos(a) * radius;","            float ay = Mathf.Sin(a) * radius;","            float bx = Mathf.Cos(b) * radius;","            float by = Mathf.Sin(b) * radius;","            Debug.DrawLine(center + new Vector3(ax, ay, 0f), center + new Vector3(bx, by, 0f), color, 0.1f);","            Debug.DrawLine(center + new Vector3(ax, 0f, ay), center + new Vector3(bx, 0f, by), color, 0.1f);","            Debug.DrawLine(center + new Vector3(0f, ax, ay), center + new Vector3(0f, bx, by), color, 0.1f);","        }","    }","");
+ if(visualTriggerNodes)methods.push("    private void __BlueprintDrawBounds(Bounds bounds, Color color)","    {","        Vector3 c = bounds.center;","        Vector3 e = bounds.extents;","        Vector3 p0 = c + new Vector3(-e.x, -e.y, -e.z);","        Vector3 p1 = c + new Vector3(e.x, -e.y, -e.z);","        Vector3 p2 = c + new Vector3(e.x, -e.y, e.z);","        Vector3 p3 = c + new Vector3(-e.x, -e.y, e.z);","        Vector3 p4 = c + new Vector3(-e.x, e.y, -e.z);","        Vector3 p5 = c + new Vector3(e.x, e.y, -e.z);","        Vector3 p6 = c + new Vector3(e.x, e.y, e.z);","        Vector3 p7 = c + new Vector3(-e.x, e.y, e.z);","        Debug.DrawLine(p0,p1,color,0.1f); Debug.DrawLine(p1,p2,color,0.1f); Debug.DrawLine(p2,p3,color,0.1f); Debug.DrawLine(p3,p0,color,0.1f);","        Debug.DrawLine(p4,p5,color,0.1f); Debug.DrawLine(p5,p6,color,0.1f); Debug.DrawLine(p6,p7,color,0.1f); Debug.DrawLine(p7,p4,color,0.1f);","        Debug.DrawLine(p0,p4,color,0.1f); Debug.DrawLine(p1,p5,color,0.1f); Debug.DrawLine(p2,p6,color,0.1f); Debug.DrawLine(p3,p7,color,0.1f);","    }","");
  const referencedTypes=[...vars.map(v=>String(v.type||"")), ...nodes.map(n=>String(n.values?.componentType||"")), ...nodes.map(n=>String(n.values?.property||"")), ...nodes.filter(n=>n.type==="setcomponent").map(n=>propertyType(n.values?.componentType||"HingeJoint",n.values?.property||"limits"))];
  const hasType=(...types)=>referencedTypes.some(t=>types.includes(t));
  const imports=["using UnityEngine;","using System;","using System.Collections;","using System.Collections.Generic;"];
