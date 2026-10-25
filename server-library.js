@@ -130,7 +130,7 @@
     return id;
   }
 
-  function submitPublish(idToken) {
+  function submitPublish() {
     if (!pendingPublishEntry || publishRequestId || !idToken) return;
     const username = String($("publishUsername").value || "").trim().replace(/\s+/g, " ");
     if (!username || username.length < 2 || username.length > 24) {
