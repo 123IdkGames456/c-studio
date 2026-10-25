@@ -109,6 +109,7 @@ function componentPropertyType(component,property){
 function actualOutputType(n,outputPin="value"){
  if(n?.type==="custominput"||n?.type==="customoutput")return (n.values?.ports||[]).find(p=>p.id===outputPin)?.type||"dynamic";
  if(String(n?.type||"").startsWith("customblock_"))return getDef(n.type)?.dataOut?.find(p=>p.id===outputPin)?.type||"dynamic";
+ if(String(n?.type||"").startsWith("customblock_"))return getDef(n.type)?.dataOut?.find(p=>p.id===outputPin)?.type||"dynamic";
   if(n?.type==="foreach")return n.values?.elementType||"GameObject";
  if(["listelement","listclosest","listfarthest"].includes(n?.type))return n.values?.elementType||"GameObject";
  if(n?.type==="getfirsttag")return "GameObject";
@@ -418,7 +419,7 @@ function renderNodes(){
     const inputType=displayInputType(n,p),pinType=inputType==="any"?"dynamic":inputType;
     html+='<div class="pin-row input-row"><span class="pin-label"><button class="pin in" data-direction="input" data-kind="data" data-type="'+esc(pinType)+'" data-pin="'+p.id+'" title="Drag to connect input"></button><span class="pin-name">'+esc(p.label)+'</span><span class="pin-type-badge input-type-badge">'+esc(inputType)+'</span></span></div>';
    });
-   if(n.type==="getcomponentvalue"||n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit"||n.type==="foreach"){
+   if(n.type==="getcomponentvalue"||n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit"||n.type==="foreach"||n.type==="custominput"||String(n.type).startsWith("customblock_")){
     const outs=nodeOutputs(n);
     if(n.type==="getcomponentvalue"&&!connectedComponentType(n))html+='<div class="node-description">Connect a typed component to show its properties.</div>';
     outs.forEach(p=>{html+='<div class="pin-row output-row"><span class="output-info"><span class="output-name">'+esc(p.label)+'</span><span class="pin-type-badge output-type-badge">'+esc(p.type)+'</span></span><button class="pin out" data-direction="output" data-kind="data" data-type="'+esc(p.type)+'" data-pin="'+p.id+'" title="Drag to connect '+esc(p.label)+'"></button></div>'})
@@ -431,6 +432,7 @@ function renderNodes(){
    if(d.flowOut&&!(n.type==="if"&&(n.values?.branchMode||"Exec")!=="Exec")&&!(n.type==="foreach"&&(n.values?.mode||"Loop")==="GetElement"))d.flowOut.forEach(p=>html+='<div class="pin-row flow-output-row"><span class="output-name">'+esc(p)+'</span><button class="pin out exec-pin" data-direction="output" data-kind="flow" data-type="exec" data-pin="'+p+'" title="Drag to connect output"></button></div>');
   html+='</div>';el.innerHTML=html;
   el.addEventListener("click",e=>{if(e.target.closest(".pin, input, select, textarea, button, label"))return;selectedNode=n.id;renderNodes();renderInspector()});
+   el.addEventListener("dblclick",e=>{if(String(n.type).startsWith("customblock_")){e.preventDefault();e.stopPropagation();enterCustomEditor(String(n.type).slice("customblock_".length))}});
   el.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();selectedNode=n.id;showContextMenu(e.clientX,e.clientY,[{label:"Delete node",className:"danger",action:()=>{nodes=nodes.filter(x=>x.id!==n.id);links=links.filter(l=>l.from!==n.id&&l.to!==n.id);if(selectedNode===n.id)selectedNode=null;renderAll();status("Node deleted")}},{label:"Duplicate node",action:()=>{const copy=addNode(n.type,n.x+15,n.y+15,{...n.values});if(copy){copy.color=n.color||"";selectedNode=copy.id;renderAll();status("Node duplicated · moved 15 px down and right")} }},{label:"Node color",submenu:[{label:"Default",color:"",action:()=>setNodeColor(n,"")},{label:"Blue",color:"#648cff",action:()=>setNodeColor(n,"#648cff")},{label:"Green",color:"#43b581",action:()=>setNodeColor(n,"#43b581")},{label:"Yellow",color:"#e0b64f",action:()=>setNodeColor(n,"#e0b64f")},{label:"Orange",color:"#e98b45",action:()=>setNodeColor(n,"#e98b45")},{label:"Red",color:"#df626c",action:()=>setNodeColor(n,"#df626c")},{label:"Purple",color:"#ad7ce8",action:()=>setNodeColor(n,"#ad7ce8")},{label:"Pink",color:"#e783b6",action:()=>setNodeColor(n,"#e783b6")},{label:"Gray",color:"#8e99aa",action:()=>setNodeColor(n,"#8e99aa")}]}]);});
   const head=el.querySelector(".node-head");
   head.addEventListener("pointerdown",e=>{if(e.target.closest("button,input,select"))return;selectedNode=n.id;const sx=e.clientX,sy=e.clientY,ox=n.x,oy=n.y;head.setPointerCapture?.(e.pointerId);function move(ev){n.x=Math.max(0,Math.min(26900,ox+ev.clientX-sx));n.y=Math.max(0,Math.min(26900,oy+ev.clientY-sy));el.style.left=n.x+"px";el.style.top=n.y+"px";drawWires()}function end(){window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",end);renderInspector()}window.addEventListener("pointermove",move);window.addEventListener("pointerup",end);e.preventDefault()});
@@ -530,7 +532,7 @@ function findSnapTarget(x,y,requireNear=true){
     source=getNode(nodeId);target=getNode(wireDrag.node);
     input=nodeInputs(target).find(p=>p.id===wireDrag.pin);
    }
-   if(!source||!target||!input||!typesCompatible(actualOutputType(source,l.fromPin),expectedInputType(target,input)))return;
+   if(!source||!target||!input||!typesCompatible(actualOutputType(source,wireDrag.direction==="output"?wireDrag.pin:pin.dataset.pin),expectedInputType(target,input)))return;
   }
   const r=pin.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,d=Math.hypot(cx-x,cy-y);
   if(d<bestDist){bestDist=d;best={pin,nodeId,distance:d}}
@@ -646,11 +648,11 @@ function pruneIncompatibleLinks(){
   if(l.kind!=="data")return true;
   const source=getNode(l.from),target=getNode(l.to),td=getDef(target?.type);
   const input=nodeInputs(target).find(p=>p.id===l.toPin);
-  return !!source&&!!input&&inputActive(target,input)&&typesCompatible(actualOutputType(source,wireDrag.direction==="output"?wireDrag.pin:wireDrag.pin),expectedInputType(target,input));
+  return !!source&&!!input&&inputActive(target,input)&&typesCompatible(actualOutputType(source,wireDrag.direction==="output"?wireDrag.pin:pin.dataset.pin),expectedInputType(target,input));
  }
  );
 }
-function renderAll(){pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
+function renderAll(){if(customEditingId)saveCurrentCustomDefinition();pruneIncompatibleLinks();renderCategories();renderBlocks();renderVariables();renderNodes();renderInspector();renderCode();drawGraphOverview()}
 
 let canvasPan=null;
 $("workspace").addEventListener("pointerdown",e=>{
