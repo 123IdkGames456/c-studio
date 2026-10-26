@@ -1039,7 +1039,7 @@ window.addEventListener("cstudio:load-server-script",async event=>{
   let project=entry.payload;
   if(typeof project==="string")project=JSON.parse(project);
   if(!project||!Array.isArray(project.nodes))throw new Error("This community entry does not contain a valid Blueprint project.");
-  await loadProjectWithProgress(project);
+  if(!(await requestProjectLoad(project)))return;
   currentLibraryId=null;
   $("libraryPanel").hidden=true;
   status("Loaded community script: "+(entry.name||project.projectName||"Blueprint project"));
