@@ -148,6 +148,7 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
  const outputConnected=id=>dataLinks.some(l=>l.from===id&&l.fromPin==="value");
  const spawnedNames=new Map(),waitFlagNames=new Map(),waitMethodNames=new Map();
  const unityEventNames=new Map(),unityEventFields=new Map(),unityEventNamesByLabel=new Map();
+  const unityEventReceiverNames=new Map(),unityEventReceiverValues=new Map();
  for(const n of nodes){
   if(n.type==="unityeventsend"){
    const label=String(n.values?.eventName||"OnBlueprintEvent").trim()||"OnBlueprintEvent";
@@ -160,6 +161,11 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
    unityEventNames.set(n.id,fieldName);
   }
   if(n.type==="gameobject"&&(n.values?.operation||"setActive")==="instantiate"&&outputConnected(n.id))spawnedNames.set(n.id,safeIdentifier("__blueprintSpawned_"+n.id,"__blueprintSpawned",usedNames));
+   if(n.type==="unityeventreceive"){
+    const label=String(n.values?.eventName||"OnBlueprintEventReceived").trim()||"OnBlueprintEventReceived";
+    unityEventReceiverNames.set(n.id,safeIdentifier(label,"OnBlueprintEventReceived",usedNames));
+    unityEventReceiverValues.set(n.id,safeIdentifier("__receivedValue_"+n.id,"__receivedValue",usedNames));
+   }
   if(n.type==="wait"){
    waitFlagNames.set(n.id,safeIdentifier("__blueprintWaitRunning_"+n.id,"__blueprintWaitRunning",usedNames));
    waitMethodNames.set(n.id,safeIdentifier("__blueprintWait_"+n.id,"__blueprintWait",usedNames));
@@ -169,7 +175,8 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
  const propertyType=(component,property)=>properties[component]?.[property]||"object";
  function nodeType(n){
   if(!n)return "dynamic";
-  if(n.type==="getfirsttag")return "GameObject";
+  if(n.type==="unityeventreceive")return n.values?.eventType||"float";
+   if(n.type==="getfirsttag")return "GameObject";
    if(["getparent","getchild","findchild"].includes(n.type))return "GameObject";
    if(["getcomponentchildren","getcomponentparent"].includes(n.type))return n.values?.componentType||"Rigidbody";
    if(["getvelocity","vectorcross","vectornormalize"].includes(n.type))return "Vector3";
@@ -309,7 +316,10 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
     expression=cleanNumber(raw,literalType);
     sourceType=literalType;
    }else expression=typedFallback(raw,type);
-  }else if(n.type==="getfirsttag"){
+  }else if(n.type==="unityeventreceive"){
+    expression=unityEventReceiverValues.get(n.id)||("__receivedValue_"+n.id);
+    sourceType=n.values?.eventType||"float";
+   }else if(n.type==="getfirsttag"){
    expression="GameObject.FindGameObjectWithTag("+escString(n.values?.tag??"Player")+")";
    sourceType="GameObject";
   }else if(n.type==="getalltag"){
@@ -554,7 +564,7 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
    visited.add(current);
    const n=findNode(current);if(!n)break;
    const p="    ".repeat(indent);
-   if(["start","update","fixed","awake","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","comment","custominput","customoutput"].includes(n.type)){}
+   if(["start","update","fixed","awake","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","unityeventreceive","comment","custominput","customoutput"].includes(n.type)){}
    else if(n.type==="breakloop"){out.push(p+"break;");break}
    else if(n.type==="continueloop"){out.push(p+"continue;");break}
    else if(n.type==="forloop"){
@@ -758,7 +768,16 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
     }
   methods.push("    }","");
  }
- if(!eventKinds.some(([type])=>nodes.some(n=>n.type===type))){
+ for(const ev of nodes.filter(n=>n.type==="unityeventreceive")){
+   const method=unityEventReceiverNames.get(ev.id)||("OnBlueprintEventReceived_"+ev.id);
+   const argumentType=String(ev.values?.eventType||"float");
+   const argumentName=unityEventReceiverValues.get(ev.id)||("__receivedValue_"+ev.id);
+   methods.push("    public void "+method+"("+argumentType+" "+argumentName+")","    {");
+   const next=connected(ev.id,"Then");
+   if(next)methods.push(...emitFlow(next,2,new Set([ev.id])));
+   methods.push("    }","");
+  }
+  if(!eventKinds.some(([type])=>nodes.some(n=>n.type===type))){
   report("Add On Start, On Update, or On Fixed Update so the generated script has an entry point.");
   methods.push("    private void Start()","    {","    }","");
  }
