@@ -175,7 +175,7 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
  const propertyType=(component,property)=>properties[component]?.[property]||"object";
  function nodeType(n){
   if(!n)return "dynamic";
-  if(n.type==="unityeventreceive")return n.values?.eventType||"float";
+  if(n.type==="unityeventreceive")return (n.values?.eventType||"float")==="none"?"none":(n.values?.eventType||"float");
    if(n.type==="getfirsttag")return "GameObject";
    if(["getparent","getchild","findchild"].includes(n.type))return "GameObject";
    if(["getcomponentchildren","getcomponentparent"].includes(n.type))return n.values?.componentType||"Rigidbody";
