@@ -786,9 +786,10 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
  }
  for(const ev of nodes.filter(n=>n.type==="unityeventreceive")){
    const method=unityEventReceiverNames.get(ev.id)||("OnBlueprintEventReceived_"+ev.id);
-   const argumentType=String(ev.values?.eventType||"float");
+   const selectedType=String(ev.values?.eventType||"float");
+   const argumentType=selectedType==="none"?"":selectedType+" ";
    const argumentName=unityEventReceiverValues.get(ev.id)||("__receivedValue_"+ev.id);
-   methods.push("    public void "+method+"("+argumentType+" "+argumentName+")","    {");
+   methods.push("    public void "+method+"("+argumentType+(selectedType==="none"?"":argumentName)+")","    {");
    const next=connected(ev.id,"Then");
    if(next)methods.push(...emitFlow(next,2,new Set([ev.id])));
    methods.push("    }","");
