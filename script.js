@@ -112,7 +112,8 @@ function componentPropertyType(component,property){
 function actualOutputType(n,outputPin="value"){
  if(n?.type==="custominput"||n?.type==="customoutput")return (n.values?.ports||[]).find(p=>p.id===outputPin)?.type||"dynamic";
  if(String(n?.type||"").startsWith("customblock_"))return getDef(n.type)?.dataOut?.find(p=>p.id===outputPin)?.type||"dynamic";
-  if(n?.type==="foreach")return n.values?.elementType||"GameObject";
+  if(n?.type==="unityeventreceive")return (n.values?.eventType||"float")==="none"?"none":(n.values?.eventType||"float");
+   if(n?.type==="foreach")return n.values?.elementType||"GameObject";
  if(["listelement","listclosest","listfarthest"].includes(n?.type))return n.values?.elementType||"GameObject";
  if(n?.type==="getfirsttag")return "GameObject";
  if(n?.type==="getalltag")return "List<GameObject>";
@@ -476,7 +477,7 @@ function renderNodes(){
     const inputType=displayInputType(n,p),pinType=inputType==="any"?"dynamic":inputType;
     html+='<div class="pin-row input-row"><span class="pin-label"><button class="pin in" data-direction="input" data-kind="data" data-type="'+esc(pinType)+'" data-pin="'+p.id+'" title="Drag to connect input"></button><span class="pin-name">'+esc(p.label)+'</span><span class="pin-type-badge input-type-badge">'+esc(inputType)+'</span></span></div>';
    });
-   if(n.type==="getcomponentvalue"||n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit"||n.type==="foreach"||n.type==="custominput"||String(n.type).startsWith("customblock_")){
+   if(n.type==="getcomponentvalue"||n.type==="vectorsplit3"||n.type==="vectorsplit2"||n.type==="quaternionsplit"||n.type==="foreach"||n.type==="unityeventreceive"||n.type==="custominput"||String(n.type).startsWith("customblock_")){
     const outs=nodeOutputs(n);
     if(n.type==="getcomponentvalue"&&!connectedComponentType(n))html+='<div class="node-description">Connect a typed component to show its properties.</div>';
     outs.forEach(p=>{html+='<div class="pin-row output-row"><span class="output-info"><span class="output-name">'+esc(p.label)+'</span><span class="pin-type-badge output-type-badge">'+esc(p.type)+'</span></span><button class="pin out" data-direction="output" data-kind="data" data-type="'+esc(p.type)+'" data-pin="'+p.id+'" title="Drag to connect '+esc(p.label)+'"></button></div>'})
@@ -500,7 +501,7 @@ function renderNodes(){
     const componentField=field.startsWith("use_")&&n.type==="setcomponent";
     const rebuildNode=componentField||field==="component"||field==="componentVariable";
     const operationChangesOutput=field==="operation"&&["transform","gameobject"].includes(n.type);
-    const pinTypeChange=["type","variable","componentType","fromType","toType","outputType","operandType","vectorType","aType","bType","branchMode"].includes(field)||operationChangesOutput;
+    const pinTypeChange=["type","variable","componentType","fromType","toType","outputType","operandType","vectorType","aType","bType","branchMode","eventType"].includes(field)||operationChangesOutput;
     if(pinTypeChange||rebuildNode){
      removeIncompatibleLinksForOutput(n.id);
      removeIncompatibleLinksForInput(n.id);
