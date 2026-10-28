@@ -777,7 +777,7 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
    if(next)methods.push(...emitFlow(next,2,new Set([ev.id])));
    methods.push("    }","");
   }
-  if(!eventKinds.some(([type])=>nodes.some(n=>n.type===type))){
+  if(!eventKinds.some(([type])=>nodes.some(n=>n.type===type))&&!nodes.some(n=>n.type==="unityeventreceive")){
   report("Add On Start, On Update, or On Fixed Update so the generated script has an entry point.");
   methods.push("    private void Start()","    {","    }","");
  }
