@@ -66,6 +66,7 @@ function nodeInputs(n){
 }
 function nodeOutputs(n){
  const d=getDef(n?.type);
+ if(n?.type==="unityeventreceive")return (n.values?.eventType||"float")==="none"?[]:[{id:"value",label:"Received Value",type:n.values?.eventType||"float"}];
  if(n?.type==="custominput"||n?.type==="customoutput")return (n.values?.ports||[]).map(p=>({id:p.id,label:p.name,type:p.type}));
  if(n?.type==="foreach"&&(n.values?.mode||"Loop")!=="LoopWithOutput")return [];
  if(n?.type!=="getcomponentvalue")return d?.dataOut||[];
