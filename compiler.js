@@ -721,6 +721,15 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
   methods.push("    private void "+method+"("+signature+")","    {");
   for(const ev of events){
    if(type==="update"){
+    if(ev===events[0]){
+     for(const inputNode of nodes.filter(n=>n.type==="input"&&connected(n.id,"Then"))){
+      const inputKey=inputNode.values?.key||"Space",inputMode=inputNode.values?.mode||"down";
+      const inputMethod=inputMode==="held"?"GetKey":inputMode==="up"?"GetKeyUp":"GetKeyDown";
+      methods.push("        if (Input."+inputMethod+"(KeyCode."+inputKey+"))","        {");
+      methods.push(...emitFlow(connected(inputNode.id,"Then"),3,new Set([inputNode.id])));
+      methods.push("        }");
+     }
+    }
     for(const dn of debugDrawNodes){
      const linked=!!dataLink(dn.id,"showDebug");
      const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):(dn.values?.showDebug===true||dn.values?.showDebug==="true"?"true":"false");
@@ -748,8 +757,15 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
   }
   methods.push("    }","");
  }
- if(debugDrawNodes.length&&!nodes.some(n=>n.type==="update")){
+ if((debugDrawNodes.length||nodes.some(n=>n.type==="input"&&connected(n.id,"Then")))&&!nodes.some(n=>n.type==="update")){
   methods.push("    private void Update()","    {");
+  for(const inputNode of nodes.filter(n=>n.type==="input"&&connected(n.id,"Then"))){
+   const inputKey=inputNode.values?.key||"Space",inputMode=inputNode.values?.mode||"down";
+   const inputMethod=inputMode==="held"?"GetKey":inputMode==="up"?"GetKeyUp":"GetKeyDown";
+   methods.push("        if (Input."+inputMethod+"(KeyCode."+inputKey+"))","        {");
+   methods.push(...emitFlow(connected(inputNode.id,"Then"),3,new Set([inputNode.id])));
+   methods.push("        }");
+  }
   for(const dn of debugDrawNodes){
      const linked=!!dataLink(dn.id,"showDebug");
      const enabled=linked?valueForInput(dn,"showDebug",new Set([dn.id]),"bool"):(dn.values?.showDebug===true||dn.values?.showDebug==="true"?"true":"false");
