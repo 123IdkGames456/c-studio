@@ -147,13 +147,25 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
  const dataLink=(id,pin)=>dataLinks.find(l=>l.to===id&&l.toPin===pin);
  const outputConnected=id=>dataLinks.some(l=>l.from===id&&l.fromPin==="value");
  const spawnedNames=new Map(),waitFlagNames=new Map(),waitMethodNames=new Map();
+ const unityEventNames=new Map(),unityEventFields=new Map(),unityEventNamesByLabel=new Map();
  for(const n of nodes){
+  if(n.type==="unityeventsend"){
+   const label=String(n.values?.eventName||"OnBlueprintEvent").trim()||"OnBlueprintEvent";
+   let fieldName=unityEventNamesByLabel.get(label);
+   if(!fieldName){
+    fieldName=safeIdentifier(label,"OnBlueprintEvent",usedNames);
+    unityEventNamesByLabel.set(label,fieldName);
+    unityEventFields.set(fieldName,true);
+   }
+   unityEventNames.set(n.id,fieldName);
+  }
   if(n.type==="gameobject"&&(n.values?.operation||"setActive")==="instantiate"&&outputConnected(n.id))spawnedNames.set(n.id,safeIdentifier("__blueprintSpawned_"+n.id,"__blueprintSpawned",usedNames));
   if(n.type==="wait"){
    waitFlagNames.set(n.id,safeIdentifier("__blueprintWaitRunning_"+n.id,"__blueprintWaitRunning",usedNames));
    waitMethodNames.set(n.id,safeIdentifier("__blueprintWait_"+n.id,"__blueprintWait",usedNames));
   }
  }
+ for(const fieldName of unityEventFields.keys())classFields.push("    public UnityEvent "+fieldName+" = new UnityEvent();");
  const propertyType=(component,property)=>properties[component]?.[property]||"object";
  function nodeType(n){
   if(!n)return "dynamic";
@@ -552,6 +564,10 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
    }else if(n.type==="whileloop"){
     const c=valueForInput(n,"condition",new Set(),"bool");out.push(p+"while ("+c+")",p+"{");const body=connected(n.id,"Loop");if(body)out.push(...emitFlow(body,indent+1,new Set(visited)));out.push(p+"}");current=connected(n.id,"Completed");continue;
    }
+   else if(n.type==="unityeventsend"){
+    const eventName=unityEventNames.get(n.id);
+    if(eventName)out.push(p+"if ("+eventName+" != null) "+eventName+".Invoke();");
+   }
    else if(n.type==="functionstart"){break;}
    else if(n.type==="callfunction"){
     const fn=nodes.find(x=>x.type==="functionstart"&&String(x.id)===String(n.values?.functionId));
@@ -762,6 +778,7 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
  const referencedTypes=[...vars.map(v=>String(v.type||"")), ...nodes.map(n=>String(n.values?.componentType||"")), ...nodes.map(n=>String(n.values?.property||"")), ...nodes.filter(n=>n.type==="setcomponent").map(n=>propertyType(n.values?.componentType||"HingeJoint",n.values?.property||"limits"))];
  const hasType=(...types)=>referencedTypes.some(t=>types.includes(t));
  const imports=["using UnityEngine;","using System;","using System.Collections;","using System.Collections.Generic;"];
+ if(nodes.some(n=>n.type==="unityeventsend"))imports.push("using UnityEngine.Events;");
  if(hasType("Button","Toggle","Slider","Scrollbar","Dropdown","TMP_Dropdown","TMP_InputField","InputField","Image","RawImage","Text","GridLayoutGroup","VerticalLayoutGroup","HorizontalLayoutGroup","ContentSizeFitter","LayoutElement","ScrollRect","RectMask2D","Mask","AspectRatioFitter","GraphicRaycaster"))imports.push("using UnityEngine.UI;");
  if(referencedTypes.some(t=>t.startsWith("TMP_")||t==="TextMeshPro"||t==="TextMeshProUGUI"))imports.push("using TMPro;");
  if(hasType("NavMeshAgent","NavMeshObstacle"))imports.push("using UnityEngine.AI;");
