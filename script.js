@@ -255,7 +255,7 @@ function importedStatement(statement){
  let m=s.match(/^Debug\\.(Log|LogWarning|LogError)\\s*\\(([\\s\\S]*)\\)$/);
  if(m){
   const n=importedNode("debug",{level:m[1]==="LogWarning"?"warning":m[1]==="LogError"?"error":"log",message:""});
-  const value=importedValue(m[2]);if(value)links.push({from:value.id,fromPin:"value",to:n.id,toPin:"value",kind:"data"});else n.values.message=m[2];
+  const value=importedValue(m[2]);if(!value)return null;links.push({from:value.id,fromPin:"value",to:n.id,toPin:"value",kind:"data"});
   return n;
  }
  m=s.match(/^(?:this\\.)?transform\\.position\\s*=\\s*([\\s\\S]+)$/);
@@ -285,7 +285,7 @@ function importCSharpSource(source){
  const eventMap={Awake:"awake",Start:"start",OnEnable:"onenable",Update:"update",FixedUpdate:"fixed",OnDisable:"ondisable",OnDestroy:"ondestroy",OnTriggerEnter:"triggerenter",OnTriggerStay:"triggerstay",OnTriggerExit:"triggerexit",OnCollisionEnter:"collisionenter",OnCollisionStay:"collisionstay",OnCollisionExit:"collisionexit"};
  let recognized=0,rawCount=0;
  parsed.methods.forEach(method=>{const eventType=eventMap[method.name];let previous=eventType?importedNode(eventType):importedNode("functionstart",{name:method.name});let methodHasNodes=false;method.statements.forEach(statement=>{const n=importedStatement(statement),node=n||importedNode("csharpraw",{code:statement});if(n)recognized++;else rawCount++;links.push({from:previous.id,fromPin:"Then",to:node.id,toPin:"Exec",kind:"flow"});previous=node;methodHasNodes=true});if(!methodHasNodes&&eventType)recognized++});
- if(parsed.classExtras){importedNode("csharpraw",{code:"// Preserved class-level C# not represented as a variable:\\n"+parsed.classExtras});rawCount++}
+ if(parsed.classExtras){importedNode("csharpraw",{scope:"class",code:parsed.classExtras});rawCount++}
  layoutImportedGraph();renderAll();$("workspace").scrollLeft=0;$("workspace").scrollTop=0;$("csharpImportPage").hidden=true;status("Imported "+nodes.length+" nodes · "+recognized+" converted · "+rawCount+" preserved as C# Code");$("diagnostics").innerHTML='<div class="status-good">✓ C# import complete. '+recognized+' statement(s) converted to native nodes.</div>'+(rawCount?'<div class="warning">⚠ '+rawCount+' unsupported statement(s) are preserved in editable C# Code nodes.</div>':'');
 }
 
