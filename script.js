@@ -243,8 +243,8 @@ function importedValue(expression){
  let type="int",value=e;
  if(/^@?".*"$/.test(e)){type="string";value=e.replace(/^@?"/,"").replace(/"$/,"")}
  else if(/^(true|false)$/.test(e)){type="bool";value=e}
- else if(/[.fFdDmM]/.test(e)){type="float";value=e.replace(/[fFdDmM]$/,"")}
  else if(/^null$/.test(e)){type="null";value="null"}
+ else if(/^-?(?:\\d+\\.\\d*|\\.\\d+|\\d+[eE][+-]?\\d+)(?:[fFdDmM])?$/.test(e)){type=/f$/i.test(e)?"float":"double";value=e.replace(/[fFdDmM]$/,"")}
  else if(!/^-?\\d+[uUlL]*$/.test(e))return null;
  else value=e.replace(/[uUlL]+$/,"");
  return importedNode("literal",{type,value});
