@@ -20,6 +20,7 @@ function syncCustomDefs(){
  });
 }
 syncCustomDefs();
+defs.push({id:"csharpraw",name:"C# Code",category:"Imported C#",color:"#a5aebf",kind:"flow",desc:"Preserved C# statement that did not match a native C-Studio node. Edit the code in the node inspector.",flowIn:["Exec"],flowOut:["Then"],fields:[{id:"code",label:"C# code",type:"text",default:""}]});
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const getDef = id => defs.find(d => d.id === id);
 const getNode = id => nodes.find(n => n.id === id);
@@ -227,6 +228,67 @@ const categoryOrder = ["Events","Flow","Variables","Values","Math","Logic","Unit
 const categoryRank = category => { const i=categoryOrder.indexOf(category); return i<0?999:i; };
 const allCategories = ["All", ...BlueprintBlocks.categories.slice().sort((a,b)=>categoryRank(a)-categoryRank(b)||a.localeCompare(b))];
 function status(s){$("graphStatus").textContent=" · "+s}
+
+function importedNode(type,values={}){
+ const d=getDef(type);if(!d)throw new Error("Missing node definition: "+type);
+ const n={id:nextNode++,type,x:100,y:100,values:{}};
+ (d.fields||[]).forEach(f=>n.values[f.id]=values[f.id]??f.default??(f.options?f.options[0][0]:""));
+ Object.assign(n.values,values);nodes.push(n);return n;
+}
+function importedValue(expression){
+ const e=String(expression||"").trim(),variable=variables.find(v=>v.name===e);
+ if(variable)return importedNode("getvar",{variable:variable.id});
+ const vector=e.match(/new\\s+Vector([234])\\s*\\((.*)\\)/s);
+ if(vector){const parts=vector[2].split(",").map(x=>x.trim());return importedNode("vector",{vectorType:"Vector"+vector[1],x:parts[0]||"0",y:parts[1]||"0",z:parts[2]||"0",w:parts[3]||"0"})}
+ let type="int",value=e;
+ if(/^@?".*"$/.test(e)){type="string";value=e.replace(/^@?"/,"").replace(/"$/,"")}
+ else if(/^(true|false)$/.test(e)){type="bool";value=e}
+ else if(/[.fFdDmM]/.test(e)){type="float";value=e.replace(/[fFdDmM]$/,"")}
+ else if(/^null$/.test(e)){type="null";value="null"}
+ else if(!/^-?\\d+[uUlL]*$/.test(e))return null;
+ else value=e.replace(/[uUlL]+$/,"");
+ return importedNode("literal",{type,value});
+}
+function importedTarget(){return importedNode("self")}
+function importedStatement(statement){
+ const s=statement.trim().replace(/;$/,"").trim();
+ let m=s.match(/^Debug\\.(Log|LogWarning|LogError)\\s*\\(([\\s\\S]*)\\)$/);
+ if(m){
+  const n=importedNode("debug",{level:m[1]==="LogWarning"?"warning":m[1]==="LogError"?"error":"log",message:""});
+  const value=importedValue(m[2]);if(value)links.push({from:value.id,fromPin:"value",to:n.id,toPin:"value",kind:"data"});else n.values.message=m[2];
+  return n;
+ }
+ m=s.match(/^(?:this\\.)?transform\\.position\\s*=\\s*([\\s\\S]+)$/);
+ if(m){const value=importedValue(m[1]);if(!value)return null;const n=importedNode("transform",{operation:"setPosition"}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"},{from:value.id,fromPin:"value",to:n.id,toPin:"vector",kind:"data"});return n}
+ m=s.match(/^(?:this\\.)?transform\\.Rotate\\s*\\(([\\s\\S]*)\\)$/);
+ if(m){const value=importedValue(m[1]);if(!value)return null;const n=importedNode("transform",{operation:"rotate"}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"},{from:value.id,fromPin:"value",to:n.id,toPin:"vector",kind:"data"});return n}
+ m=s.match(/^(?:this\\.)?gameObject\\.SetActive\\s*\\((true|false)\\)$/);
+ if(m){const n=importedNode("gameobject",{operation:"setActive",active:m[1]}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"});return n}
+ m=s.match(/^Destroy\\s*\\(\\s*(?:gameObject|this\\.gameObject)\\s*\\)$/);
+ if(m){const n=importedNode("gameobject",{operation:"destroy"}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"});return n}
+ m=s.match(/^([A-Za-z_]\\w*)\\s*=\\s*([\\s\\S]+)$/);
+ if(m){const variable=variables.find(v=>v.name===m[1]);if(variable){const n=importedNode("setvar",{variable:variable.id}),value=importedValue(m[2]);if(value)links.push({from:value.id,fromPin:"value",to:n.id,toPin:"value",kind:"data"});else return null;return n}}
+ return null;
+}
+function layoutImportedGraph(){
+ const level=new Map(nodes.map(n=>[n.id,0]));
+ for(let pass=0;pass<nodes.length;pass++){let changed=false;links.forEach(l=>{const a=level.get(l.from),b=level.get(l.to);if(a!==undefined&&b!==undefined&&b<a+1&&pass<nodes.length-1){level.set(l.to,a+1);changed=true}});if(!changed)break}
+ const columns=new Map();nodes.forEach(n=>{const x=Math.min(10,level.get(n.id)||0);if(!columns.has(x))columns.set(x,[]);columns.get(x).push(n)});
+ for(const [column,list] of columns){list.sort((a,b)=>{const rank=n=>["start","awake","update","fixed","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","functionstart"].includes(n.type)?0:["self","literal","vector","getvar"].includes(n.type)?1:2;return rank(a)-rank(b)||a.id-b.id});let y=100;list.forEach(n=>{n.x=100+column*370;n.y=y;const d=getDef(n.type);y+=Math.max(150,115+(d?.fields?.length||0)*35+(d?.dataIn?.length||0)*24)+55})}
+}
+function importCSharpSource(source){
+ const parsed=CSharpImporter.parse(source);
+ if(!parsed.methods.length)throw new Error("No C# methods were found. Check that the script contains a class with method bodies.");
+ nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value=parsed.className||"ImportedScript";
+ const typeMap={int:"int",float:"float",double:"double",long:"long",bool:"bool",string:"string",Vector2:"Vector2",Vector3:"Vector3",Vector4:"Vector4",Quaternion:"Quaternion",Color:"Color",Color32:"Color32",GameObject:"GameObject",Transform:"Transform",Rigidbody:"Rigidbody"};
+ parsed.variables.forEach(v=>{const type=typeMap[v.type]||v.type;if(!variables.some(x=>x.name===v.name))variables.push({id:"v"+nextVariable++,name:v.name,type,access:v.access,initial:v.initial||BlueprintTypes.defaultValue(type)})});
+ const eventMap={Awake:"awake",Start:"start",OnEnable:"onenable",Update:"update",FixedUpdate:"fixed",OnDisable:"ondisable",OnDestroy:"ondestroy",OnTriggerEnter:"triggerenter",OnTriggerStay:"triggerstay",OnTriggerExit:"triggerexit",OnCollisionEnter:"collisionenter",OnCollisionStay:"collisionstay",OnCollisionExit:"collisionexit"};
+ let recognized=0,rawCount=0;
+ parsed.methods.forEach(method=>{const eventType=eventMap[method.name];let previous=eventType?importedNode(eventType):importedNode("functionstart",{name:method.name});let methodHasNodes=false;method.statements.forEach(statement=>{const n=importedStatement(statement),node=n||importedNode("csharpraw",{code:statement});if(n)recognized++;else rawCount++;links.push({from:previous.id,fromPin:"Then",to:node.id,toPin:"Exec",kind:"flow"});previous=node;methodHasNodes=true});if(!methodHasNodes&&eventType)recognized++});
+ if(parsed.classExtras){importedNode("csharpraw",{code:"// Preserved class-level C# not represented as a variable:\\n"+parsed.classExtras});rawCount++}
+ layoutImportedGraph();renderAll();$("workspace").scrollLeft=0;$("workspace").scrollTop=0;$("csharpImportPage").hidden=true;status("Imported "+nodes.length+" nodes · "+recognized+" converted · "+rawCount+" preserved as C# Code");$("diagnostics").innerHTML='<div class="status-good">✓ C# import complete. '+recognized+' statement(s) converted to native nodes.</div>'+(rawCount?'<div class="warning">⚠ '+rawCount+' unsupported statement(s) are preserved in editable C# Code nodes.</div>':'');
+}
+
 function defaultNodePosition(){
  const workspace=$("workspace"),canvas=$("canvas"),wr=workspace.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
  const centerX=wr.left+workspace.clientWidth/2,centerY=wr.top+workspace.clientHeight/2;
@@ -447,6 +509,7 @@ function fieldHtml(n,f){
   return '<label class="node-field"><span>'+esc(f.label)+'</span><select data-field="'+f.id+'"><option value="">Choose variable…</option>'+list.map(v=>'<option value="'+v.id+'" '+(val===v.id?"selected":"")+'>'+esc(v.name)+' · '+esc(v.type)+'</option>').join("")+'</select></label>';
  }
  if(f.type==="select")return '<label class="node-field"><span>'+esc(f.label)+'</span><select data-field="'+f.id+'">'+f.options.map(o=>'<option value="'+esc(o[0])+'" '+(String(val)===String(o[0])?"selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select></label>';
+ if(n.type==="csharpraw"&&f.id==="code")return '<label class="node-field" style="display:block"><span>'+esc(f.label)+'</span><textarea data-field="code" rows="5" style="width:100%;min-height:100px;resize:vertical;background:#10141d;color:#f1f4fb;border:1px solid #343d50;border-radius:7px;padding:8px;font:11px/1.5 ui-monospace,monospace">'+esc(val)+'</textarea></label>';
  if(n.type==="literal"&&f.id==="value"&&literalIsList(n))return literalListEditor(n,false);
   if(n.type==="literal"&&f.id==="value"&&(n.values.type||"int")==="bool")return '<label class="node-field checkbox-field"><span>Value</span><input data-field="value" type="checkbox" '+(val==="true"||val===true?"checked":"")+'></label>';
  const literalType=n.type==="literal"&&f.id==="value"?(n.values.type||"int"):null;
@@ -1020,7 +1083,8 @@ function openLibrarySaveChoice(){
 $("saveProject").onclick=openSaveChoices;
 $("loadProject").onclick=()=>{const p=BlueprintStorage.load();if(p)requestProjectLoad(p).catch(e=>alert(e.message));else $("fileInput").click()};
 $("fileInput").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const p=JSON.parse(await file.text());if(await requestProjectLoad(p)) { BlueprintStorage.save(snapshot());status("Project JSON imported") }}catch(err){alert("Could not import JSON: "+err.message)}e.target.value=""};
-$("importJSON").onclick=()=>$("fileInput").click();$("openLibrary").onclick=openLibrary;$("closeLibrary").onclick=()=>$("libraryPanel").hidden=true;$("librarySearch").addEventListener("input",renderLibrary);$("libraryImportJson").onclick=()=>$("libraryJsonInput").click();$("libraryScriptsTab").onclick=()=>setLibraryTab("scripts");$("libraryCustomTab").onclick=()=>{renderCustomBlockLibrary();setLibraryTab("custom")};$("customBlockSearch").addEventListener("input",renderCustomBlockLibrary);$("customBlockLibraryList").addEventListener("click",e=>{const b=e.target.closest("button[data-custom-action]");if(!b)return;const {customAction,id}=Object.assign({customAction:b.dataset.customAction},b.dataset);if(customAction==="rename")renameCustomBlock(id);if(customAction==="delete")removeCustomBlock(id);if(customAction==="publish"){const block=customBlocks.find(x=>x.id===id);if(block)publishItem("custom",{name:block.name,payload:{customBlock:block}})}if(customAction==="edit"){if(!customBlocks.some(x=>x.id===id))return;$("libraryPanel").hidden=true;enterCustomEditor(id)}});
+$("importJSON").onclick=()=>$("fileInput").click();
+$("importCSharp").onclick=()=>{$("csharpImportPage").hidden=false};$("closeCSharpImport").onclick=()=>{$("csharpImportPage").hidden=true};$("chooseCSharpFile").onclick=()=>$("csharpFileInput").click();$("csharpFileInput").onchange=async e=>{const file=e.target.files[0];if(!file)return;$("csharpSource").value=await file.text();$("csharpFileName").textContent=file.name;e.target.value=""};$("runCSharpImport").onclick=()=>{try{if(!$("csharpSource").value.trim())throw Error("Choose a .cs file or paste C# source first.");importCSharpSource($("csharpSource").value)}catch(error){$("csharpImportInfo").textContent=error.message;alert("C# import failed: "+error.message)}};$("openLibrary").onclick=openLibrary;$("closeLibrary").onclick=()=>$("libraryPanel").hidden=true;$("librarySearch").addEventListener("input",renderLibrary);$("libraryImportJson").onclick=()=>$("libraryJsonInput").click();$("libraryScriptsTab").onclick=()=>setLibraryTab("scripts");$("libraryCustomTab").onclick=()=>{renderCustomBlockLibrary();setLibraryTab("custom")};$("customBlockSearch").addEventListener("input",renderCustomBlockLibrary);$("customBlockLibraryList").addEventListener("click",e=>{const b=e.target.closest("button[data-custom-action]");if(!b)return;const {customAction,id}=Object.assign({customAction:b.dataset.customAction},b.dataset);if(customAction==="rename")renameCustomBlock(id);if(customAction==="delete")removeCustomBlock(id);if(customAction==="publish"){const block=customBlocks.find(x=>x.id===id);if(block)publishItem("custom",{name:block.name,payload:{customBlock:block}})}if(customAction==="edit"){if(!customBlocks.some(x=>x.id===id))return;$("libraryPanel").hidden=true;enterCustomEditor(id)}});
 $("librarySaveCurrent").onclick=()=>{const name=prompt("Name this saved script:",$("projectName").value||"Untitled script");if(name===null)return;try{const e=saveCurrentToLibrary(true,name.trim()||"Untitled script");status("Saved "+e.name+" to Library")}catch(e){alert("Could not save to Library: "+e.message)}};
 $("libraryJsonInput").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const p=JSON.parse(await file.text());if(!p||!Array.isArray(p.nodes))throw Error("The JSON does not contain a Blueprint project.");const all=libraryEntries();all.unshift(makeEntry(p,file.name.replace(/\.json$/i,"")||p.projectName||"Imported script"));writeLibrary(all);renderLibrary();status("JSON added to Library")}catch(err){alert("Could not add JSON to Library: "+err.message)}e.target.value=""};
 $("libraryList").addEventListener("click",async e=>{const b=e.target.closest("button[data-action]");if(!b)return;const {action,id}=b.dataset,all=libraryEntries(),entry=all.find(x=>x.id===id);if(!entry)return;try{if(action==="load"){if(await requestProjectLoad(entry.project,entry.id))$("libraryPanel").hidden=true;return}if(action==="favorite")entry.favorite=!entry.favorite;if(action==="rename"){const n=prompt("Rename saved script:",entry.name);if(n===null)return;entry.name=n.trim()||entry.name;entry.updatedAt=new Date().toISOString()}if(action==="move"){const n=prompt("Move to collection/folder:",entry.folder||"My Scripts");if(n===null)return;entry.folder=n.trim()||"My Scripts";entry.updatedAt=new Date().toISOString()}if(action==="delete"){if(!confirm('Remove "'+entry.name+'" from this device?'))return;writeLibrary(all.filter(x=>x.id!==id));if(currentLibraryId===id)currentLibraryId=null;renderLibrary();return}if(action==="export")BlueprintStorage.download(BlueprintStorage.safeName(entry.name)+".json",BlueprintStorage.snapshot(entry.project),"application/json");if(action==="publish"){publishItem("code",{name:entry.name,payload:{project:entry.project}});return}writeLibrary(all);renderLibrary()}catch(err){alert("Library action failed: "+err.message)}});
