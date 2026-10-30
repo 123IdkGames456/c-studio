@@ -307,3 +307,21 @@ button:active{transform:translateY(1px)}
 .library-tabs{flex:none}.library-tab{transition:background .15s,border-color .15s,color .15s}.library-view{flex:1;min-height:0}.library-view[hidden]{display:none!important}#libraryCustomView .library-footer{justify-content:space-between}#libraryCustomView .library-footer span:last-child{color:#8fa3c5;font-size:10px;text-align:right}.library-entry .server-entry-title{padding:1px 0}.library-entry .server-entry-title strong{font-size:13px}.library-entry-actions button[data-custom-action="edit"]{background:#293a5b;border-color:#536b9c;color:#f1f5ff}
 
 .explore-panel{z-index:125}.explore-connect{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:7px}.explore-connect label{font-size:11px;color:var(--muted)}.explore-connect p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}.explore-connect details{font-size:11px;color:var(--muted);line-height:1.6}.explore-connect summary{cursor:pointer;color:var(--text)}.explore-connect ol{padding-left:19px}.explore-connect a{color:var(--blue)}.explore-connect code{color:#d3c0ff}.explore-connect .library-toolbar{padding:0;border:0}.explore-panel .library-view[hidden]{display:none!important}.explore-panel .library-footer span:last-child{color:var(--muted);font-size:10px;text-align:right}.explore-panel .library-entry-actions button.primary{background:#354b7b;border-color:#647fbd}
+
+.csharp-import-page{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:20px;background:#080b12ed;backdrop-filter:blur(13px)}
+.csharp-import-page[hidden]{display:none!important}
+.csharp-import-shell{width:min(1000px,100%);height:min(820px,92dvh);display:flex;flex-direction:column;overflow:hidden;border:1px solid #405170;border-radius:17px;background:linear-gradient(145deg,#172133,#0e1420);box-shadow:0 30px 110px #000c}
+.csharp-import-header{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:20px 22px;border-bottom:1px solid #2c3a50}
+.csharp-import-header strong{font-size:13px;letter-spacing:1.5px;color:#eef3ff}
+.csharp-import-header p{margin:7px 0 0;color:#9baac2;font-size:11px;line-height:1.5}
+.csharp-import-header>button{font-size:23px;padding:2px 10px}
+.csharp-import-content{display:flex;flex:1;min-height:0;flex-direction:column;padding:18px 22px}
+.csharp-import-content>label{margin-bottom:8px;color:#cdd8ec;font-size:12px;font-weight:800}
+.csharp-import-tools{display:flex;align-items:center;gap:12px;margin-bottom:10px;color:#8799b7;font-size:11px}
+.csharp-import-tools button{padding:8px 12px}
+#csharpSource{flex:1;min-height:180px;resize:none;padding:15px;border:1px solid #35445f;border-radius:10px;outline:none;background:#090f19;color:#cde5d9;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:4}
+#csharpSource:focus{border-color:#7896e9;box-shadow:0 0 0 3px #7896e922}
+.csharp-import-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;padding-top:13px}
+.csharp-import-footer span{color:#8798b4;font-size:10px;line-height:1.5}
+.csharp-import-footer button{padding:11px 16px}
+@media(max-width:600px){.csharp-import-page{padding:8px}.csharp-import-shell{height:96dvh}.csharp-import-header,.csharp-import-content{padding:14px}.csharp-import-footer{align-items:stretch;flex-direction:column}.csharp-import-footer button{width:100%}}
