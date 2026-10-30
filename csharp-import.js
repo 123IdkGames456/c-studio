@@ -54,7 +54,7 @@ window.CSharpImporter = (() => {
   let fields=classBody;
   for(let i=covered.length-1;i>=0;i--)fields=fields.slice(0,covered[i][0])+fields.slice(covered[i][1]);
   const variables=[],fieldSpans=[];
-  const fieldRegex=/\b(?:(public|private|protected|internal)\s+)?(?:(static|readonly|const|SerializeField)\s+)*([A-Za-z_]\w*(?:<[^;=]+>)?(?:\[\])?)\s+([A-Za-z_]\w*)\s*(?:=\s*([^;]+))?;/g;
+  const fieldRegex=/\b(?:(public|private|protected|internal)\s+)?(?:(static|readonly|const|SerializeField)\s+)*([A-Za-z_]\w*(?:<[^;=]+>)?(?:\[\])?)\s+([A-Za-z_]\w*)\s*(?!\{)(?:=\s*([^;]+))?;/g;
   while((match=fieldRegex.exec(fields))){
    const type=match[3],name=match[4],initial=clean(match[5]||"");
    if(["using","return","namespace"].includes(type))continue;
