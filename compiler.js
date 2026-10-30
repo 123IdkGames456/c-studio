@@ -592,6 +592,8 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
    }else if(n.type==="listadd"||n.type==="listremove"||n.type==="listclear"){
     const t=n.values?.elementType||"GameObject",l=valueForInput(n,"list",new Set(),"List<"+t+">");if(n.type==="listadd")out.push(p+"if ("+l+" != null) "+l+".Add("+valueForInput(n,"item",new Set(),t)+");");else if(n.type==="listremove")out.push(p+"if ("+l+" != null) "+l+".Remove("+valueForInput(n,"item",new Set(),t)+");");else out.push(p+"if ("+l+" != null) "+l+".Clear();");
    }else if(n.type==="setparent"){const t=valueForInput(n,"target",new Set(),"GameObject"),pl=dataLink(n.id,"parent"),par=pl?valueExpr(pl.from,new Set(),"GameObject",pl.fromPin):"null";out.push(p+"if ("+t+" != null) "+t+".transform.SetParent("+par+" != null ? "+par+".transform : null);");
+   }else if(n.type==="csharpraw"){
+    const raw=String(n.values?.code||"").trim();if(raw)out.push(p+raw.split("\n").join("\n"+p));
    }else if(n.type==="debug"){
     const level=n.values?.level||"log";
     const method=level==="warning"?"LogWarning":level==="error"?"LogError":"Log";
