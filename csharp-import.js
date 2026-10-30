@@ -28,7 +28,7 @@ window.CSharpImporter = (() => {
    else if(c==="[")square++;else if(c==="]")square--;
    else if(c==="{")brace++;else if(c==="}")brace--;
    if(c===";"&&round===0&&square===0&&brace===0){const part=clean(body.slice(start,i+1));if(part)out.push(part);start=i+1}
-   else if(c==="}"&&round===0&&square===0&&brace===0){const part=clean(body.slice(start,i+1));if(part)out.push(part);start=i+1}
+   else if(c==="}"&&round===0&&square===0&&brace===0){let look=i+1;while(/\s/.test(body[look]||""))look++;if(!/^(else|catch|finally)\b/.test(body.slice(look))){const part=clean(body.slice(start,i+1));if(part)out.push(part);start=i+1}}
   }
   const tail=clean(body.slice(start));if(tail)out.push(tail);
   return out;
@@ -58,7 +58,7 @@ window.CSharpImporter = (() => {
   while((match=fieldRegex.exec(fields))){
    const type=match[3],name=match[4],initial=clean(match[5]||"");
    if(["using","return","namespace"].includes(type))continue;
-   variables.push({name,type,initial,access:match[1]==="public"?"public-inspector":match[1]==="private"||/SerializeField/i.test(match[0])?"private-inspector":"private"});
+   variables.push({name,type,initial,access:match[1]==="public"?"public-inspector":match[1]==="private"||/SerializeField/i.test(fields.slice(Math.max(0,match.index-100),match.index))?"private-inspector":"private"});
    fieldSpans.push([match.index,fieldRegex.lastIndex]);
   }
   for(let i=fieldSpans.length-1;i>=0;i--)fields=fields.slice(0,fieldSpans[i][0])+fields.slice(fieldSpans[i][1]);
