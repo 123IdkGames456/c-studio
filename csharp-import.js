@@ -41,7 +41,7 @@ window.CSharpImporter = (() => {
   const classClose=matchingBrace(source,classOpen);
   const classBody=source.slice(classOpen+1,classClose);
   const methods=[],covered=[];
-  const methodRegex=/\b(?:public|private|protected|internal|static|virtual|override|async|new|sealed|partial|extern|unsafe|\s)+[\w<>,\[\]?.]+\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{/g;
+  const methodRegex=/\b(?:(?:public|private|protected|internal|static|virtual|override|async|new|sealed|partial|extern|unsafe)\s+)*[\w<>,\[\]?.]+\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{/g;
   let match;
   while((match=methodRegex.exec(classBody))){
    const open=classBody.indexOf("{",match.index+match[0].lastIndexOf(")"));
