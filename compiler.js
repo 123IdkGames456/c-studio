@@ -701,6 +701,7 @@ function compile(inputNodes,inputLinks,inputVars,className,customBlocks){
   return out;
  }
  for(const n of nodes){
+  if(n.type==="csharpraw"&&n.values?.scope==="class"&&String(n.values?.code||"").trim())classFields.push(...String(n.values.code).trim().split("\\n").map(line=>"    "+line));
   if(n.type==="gameobject"&&(n.values?.operation||"setActive")==="instantiate"&&outputConnected(n.id))classFields.push("    private GameObject "+(spawnedNames.get(n.id)||("__blueprintSpawned_"+n.id))+";");
   if(n.type==="getvar"&&!findVar(n.values?.variable))report("Choose an existing variable in Get Variable.");
   if(n.type==="setvar"&&!findVar(n.values?.variable))report("Choose an existing variable in Set Variable.");
