@@ -58,7 +58,7 @@ window.CSharpImporter = (() => {
   while((match=fieldRegex.exec(fields))){
    const type=match[3],name=match[4],initial=clean(match[5]||"");
    if(["using","return","namespace"].includes(type))continue;
-   variables.push({name,type,initial,access:match[1]==="public"?"public-inspector":match[1]==="private"||/SerializeField/i.test(fields.slice(Math.max(0,match.index-100),match.index))?"private-inspector":"private"});
+   variables.push({name,type,initial,access:match[1]==="public"?"public-inspector":/SerializeField/i.test(fields.slice(Math.max(0,match.index-100),match.index))?"private-inspector":"private"});
    fieldSpans.push([match.index,fieldRegex.lastIndex]);
   }
   for(let i=fieldSpans.length-1;i>=0;i--)fields=fields.slice(0,fieldSpans[i][0])+fields.slice(fieldSpans[i][1]);
