@@ -238,35 +238,35 @@ function importedNode(type,values={}){
 function importedValue(expression){
  const e=String(expression||"").trim(),variable=variables.find(v=>v.name===e);
  if(variable)return importedNode("getvar",{variable:variable.id});
- const vector=e.match(/new\\s+Vector([234])\\s*\\((.*)\\)/s);
+ const vector=e.match(/new\s+Vector([234])\s*\((.*)\)/s);
  if(vector){const parts=vector[2].split(",").map(x=>x.trim());return importedNode("vector",{vectorType:"Vector"+vector[1],x:parts[0]||"0",y:parts[1]||"0",z:parts[2]||"0",w:parts[3]||"0"})}
  let type="int",value=e;
  if(/^@?".*"$/.test(e)){type="string";value=e.replace(/^@?"/,"").replace(/"$/,"")}
  else if(/^(true|false)$/.test(e)){type="bool";value=e}
  else if(/^null$/.test(e)){type="null";value="null"}
- else if(/^-?(?:\\d+\\.\\d*|\\.\\d+|\\d+[eE][+-]?\\d+)(?:[fFdDmM])?$/.test(e)){type=/f$/i.test(e)?"float":"double";value=e.replace(/[fFdDmM]$/,"")}
- else if(!/^-?\\d+[uUlL]*$/.test(e))return null;
+ else if(/^-?(?:\d+\.\d*|\.\d+|\d+[eE][+-]?\d+)(?:[fFdDmM])?$/.test(e)){type=/f$/i.test(e)?"float":"double";value=e.replace(/[fFdDmM]$/,"")}
+ else if(!/^-?\d+[uUlL]*$/.test(e))return null;
  else value=e.replace(/[uUlL]+$/,"");
  return importedNode("literal",{type,value});
 }
 function importedTarget(){return importedNode("self")}
 function importedStatement(statement){
  const s=statement.trim().replace(/;$/,"").trim();
- let m=s.match(/^Debug\\.(Log|LogWarning|LogError)\\s*\\(([\\s\\S]*)\\)$/);
+ let m=s.match(/^Debug\.(Log|LogWarning|LogError)\s*\(([\s\S]*)\)$/);
  if(m){
   const n=importedNode("debug",{level:m[1]==="LogWarning"?"warning":m[1]==="LogError"?"error":"log",message:""});
   const value=importedValue(m[2]);if(!value)return null;links.push({from:value.id,fromPin:"value",to:n.id,toPin:"value",kind:"data"});
   return n;
  }
- m=s.match(/^(?:this\\.)?transform\\.position\\s*=\\s*([\\s\\S]+)$/);
+ m=s.match(/^(?:this\.)?transform\.position\s*=\s*([\s\S]+)$/);
  if(m){const value=importedValue(m[1]);if(!value)return null;const n=importedNode("transform",{operation:"setPosition"}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"},{from:value.id,fromPin:"value",to:n.id,toPin:"vector",kind:"data"});return n}
- m=s.match(/^(?:this\\.)?transform\\.Rotate\\s*\\(([\\s\\S]*)\\)$/);
+ m=s.match(/^(?:this\.)?transform\.Rotate\s*\(([\s\S]*)\)$/);
  if(m){const value=importedValue(m[1]);if(!value)return null;const n=importedNode("transform",{operation:"rotate"}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"},{from:value.id,fromPin:"value",to:n.id,toPin:"vector",kind:"data"});return n}
- m=s.match(/^(?:this\\.)?gameObject\\.SetActive\\s*\\((true|false)\\)$/);
+ m=s.match(/^(?:this\.)?gameObject\.SetActive\s*\((true|false)\)$/);
  if(m){const n=importedNode("gameobject",{operation:"setActive",active:m[1]}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"});return n}
- m=s.match(/^Destroy\\s*\\(\\s*(?:gameObject|this\\.gameObject)\\s*\\)$/);
+ m=s.match(/^Destroy\s*\(\s*(?:gameObject|this\.gameObject)\s*\)$/);
  if(m){const n=importedNode("gameobject",{operation:"destroy"}),target=importedTarget();links.push({from:target.id,fromPin:"value",to:n.id,toPin:"target",kind:"data"});return n}
- m=s.match(/^([A-Za-z_]\\w*)\\s*=\\s*([\\s\\S]+)$/);
+ m=s.match(/^([A-Za-z_]\w*)\s*=\s*([\s\S]+)$/);
  if(m){const variable=variables.find(v=>v.name===m[1]);if(variable){const n=importedNode("setvar",{variable:variable.id}),value=importedValue(m[2]);if(value)links.push({from:value.id,fromPin:"value",to:n.id,toPin:"value",kind:"data"});else return null;return n}}
  return null;
 }
