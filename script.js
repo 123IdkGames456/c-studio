@@ -271,22 +271,105 @@ function importedStatement(statement){
  return null;
 }
 function layoutImportedGraph(){
- const level=new Map(nodes.map(n=>[n.id,0]));
- for(let pass=0;pass<nodes.length;pass++){let changed=false;links.forEach(l=>{const a=level.get(l.from),b=level.get(l.to);if(a!==undefined&&b!==undefined&&b<a+1&&pass<nodes.length-1){level.set(l.to,a+1);changed=true}});if(!changed)break}
- const columns=new Map();nodes.forEach(n=>{const x=Math.min(10,level.get(n.id)||0);if(!columns.has(x))columns.set(x,[]);columns.get(x).push(n)});
- for(const [column,list] of columns){list.sort((a,b)=>{const rank=n=>["start","awake","update","fixed","onenable","ondisable","ondestroy","triggerenter","triggerstay","triggerexit","collisionenter","collisionstay","collisionexit","functionstart"].includes(n.type)?0:["self","literal","vector","getvar"].includes(n.type)?1:2;return rank(a)-rank(b)||a.id-b.id});let y=100;list.forEach(n=>{n.x=100+column*370;n.y=y;const d=getDef(n.type);y+=Math.max(150,115+(d?.fields?.length||0)*35+(d?.dataIn?.length||0)*24)+55})}
+ const methodGroups=window.__csharpImportGroups||[];
+ methodGroups.forEach((group,groupIndex)=>{
+  const rowY=130+groupIndex*920;
+  group.entry.x=100;group.entry.y=rowY+100;
+  group.statements.forEach((item,index)=>{
+   const actionX=500+index*470;
+   item.action.x=actionX;item.action.y=rowY+100;
+   item.values.forEach((value,valueIndex)=>{
+    value.x=actionX-310;
+    value.y=rowY+valueIndex*205;
+   });
+  });
+ });
+ const classNodes=nodes.filter(n=>n.values?.scope==="class");
+ classNodes.forEach((n,i)=>{n.x=100;n.y=130+methodGroups.length*920+i*220});
 }
-function importCSharpSource(source){
+function validateImportedConnections(){
+ let removed=0;
+ for(let pass=0;pass<10;pass++){
+  const seen=new Set();
+  links=links.filter(link=>{
+   const from=getNode(link.from),to=getNode(link.to);
+   if(!from||!to){removed++;return false}
+   const key=[link.kind,link.from,link.fromPin,link.to,link.toPin].join("|");
+   if(seen.has(key)){removed++;return false}
+   seen.add(key);
+   if(link.kind==="flow"){
+    const out=getDef(from.type)?.flowOut||[],input=getDef(to.type)?.flowIn||[];
+    const valid=out.includes(link.fromPin)&&input.includes(link.toPin);
+    if(!valid)removed++;
+    return valid;
+   }
+   const out=nodeOutputs(from).some(p=>p.id===link.fromPin);
+   const input=nodeInputs(to).some(p=>p.id===link.toPin);
+   if(!out||!input){removed++;return false}
+   return true;
+  });
+ }
+ return {removed,checked:10};
+}
+async function importCSharpSource(source){
  const parsed=CSharpImporter.parse(source);
  if(!parsed.methods.length)throw new Error("No C# methods were found. Check that the script contains a class with method bodies.");
- nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;selectedNode=null;$("projectName").value=parsed.className||"ImportedScript";
+ nodes=[];links=[];variables=[];nextNode=1;nextVariable=1;selectedNode=null;
+ $("projectName").value=parsed.className||"ImportedScript";
  const typeMap={int:"int",float:"float",double:"double",long:"long",bool:"bool",string:"string",Vector2:"Vector2",Vector3:"Vector3",Vector4:"Vector4",Quaternion:"Quaternion",Color:"Color",Color32:"Color32",GameObject:"GameObject",Transform:"Transform",Rigidbody:"Rigidbody"};
  parsed.variables.forEach(v=>{const type=typeMap[v.type]||v.type;if(!variables.some(x=>x.name===v.name))variables.push({id:"v"+nextVariable++,name:v.name,type,access:v.access,initial:v.initial||BlueprintTypes.defaultValue(type)})});
  const eventMap={Awake:"awake",Start:"start",OnEnable:"onenable",Update:"update",FixedUpdate:"fixed",OnDisable:"ondisable",OnDestroy:"ondestroy",OnTriggerEnter:"triggerenter",OnTriggerStay:"triggerstay",OnTriggerExit:"triggerexit",OnCollisionEnter:"collisionenter",OnCollisionStay:"collisionstay",OnCollisionExit:"collisionexit"};
- let recognized=0,rawCount=0;
- parsed.methods.forEach(method=>{const eventType=eventMap[method.name];let previous=eventType?importedNode(eventType):importedNode("functionstart",{name:method.name});let methodHasNodes=false;method.statements.forEach(statement=>{const n=importedStatement(statement),node=n||importedNode("csharpraw",{code:statement});if(n)recognized++;else rawCount++;links.push({from:previous.id,fromPin:"Then",to:node.id,toPin:"Exec",kind:"flow"});previous=node;methodHasNodes=true});if(!methodHasNodes&&eventType)recognized++});
- if(parsed.classExtras){importedNode("csharpraw",{scope:"class",code:parsed.classExtras});rawCount++}
- layoutImportedGraph();renderAll();$("workspace").scrollLeft=0;$("workspace").scrollTop=0;$("csharpImportPage").hidden=true;status("Imported "+nodes.length+" nodes · "+recognized+" converted · "+rawCount+" preserved as C# Code");$("diagnostics").innerHTML='<div class="status-good">✓ C# import complete. '+recognized+' statement(s) converted to native nodes.</div>'+(rawCount?'<div class="warning">⚠ '+rawCount+' unsupported statement(s) are preserved in editable C# Code nodes.</div>':'');
+ const eventOrder=["Awake","Start","OnEnable","Update","FixedUpdate","OnDisable","OnDestroy","OnTriggerEnter","OnTriggerStay","OnTriggerExit","OnCollisionEnter","OnCollisionStay","OnCollisionExit"];
+ const orderedMethods=parsed.methods.slice().sort((a,b)=>{
+  const ai=eventOrder.indexOf(a.name),bi=eventOrder.indexOf(b.name);
+  return (ai<0?100:ai)-(bi<0?100:bi)||parsed.methods.indexOf(a)-parsed.methods.indexOf(b);
+ });
+ const progress=$("loadProgress");
+ progress.hidden=false;
+ $("loadProgressTitle").textContent="Importing C# methods";
+ $("loadProgressStages").innerHTML="";
+ let recognized=0,rawCount=0,totalStatements=0;
+ orderedMethods.forEach(m=>totalStatements+=m.statements.length);
+ const groups=[];
+ for(let methodIndex=0;methodIndex<orderedMethods.length;methodIndex++){
+  const method=orderedMethods[methodIndex],eventType=eventMap[method.name];
+  const entry=importedNode(eventType||"functionstart",eventType?{}:{name:method.name});
+  const group={entry,statements:[]};groups.push(group);
+  let previous=entry;
+  for(const statement of method.statements){
+   const nodeStart=nodes.length,linkStart=links.length,nextStart=nextNode;
+   let action=importedStatement(statement);
+   if(!action){
+    nodes.length=nodeStart;links.length=linkStart;nextNode=nextStart;
+    action=importedNode("csharpraw",{code:statement});
+    rawCount++;
+   }else recognized++;
+   const made=nodes.slice(nodeStart);
+   const valueNodes=made.filter(n=>n.id!==action.id);
+   links.push({from:previous.id,fromPin:"Then",to:action.id,toPin:"Exec",kind:"flow"});
+   previous=action;
+   group.statements.push({action,values:valueNodes});
+  }
+  if(!method.statements.length&&eventType)recognized++;
+  window.__csharpImportGroups=groups;
+  layoutImportedGraph();
+  renderAll();
+  $("loadProgressDetail").textContent="Loaded "+method.name+" ("+(methodIndex+1)+" of "+orderedMethods.length+")";
+  $("loadProgressBar").style.width=Math.round((methodIndex+1)/orderedMethods.length*100)+"%";
+  $("loadProgressPercent").textContent=Math.round((methodIndex+1)/orderedMethods.length*100)+"%";
+  $("loadProgressStages").innerHTML=orderedMethods.map((m,i)=>'<span class="'+(i<=methodIndex?"complete":"")+'">'+esc(m.name)+'</span>').join("");
+  await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+ }
+ if(parsed.classExtras){const extra=importedNode("csharpraw",{scope:"class",code:parsed.classExtras});extra.x=100;extra.y=130+groups.length*920;rawCount++}
+ window.__csharpImportGroups=groups;
+ layoutImportedGraph();
+ const check=validateImportedConnections();
+ renderAll();
+ $("workspace").scrollLeft=0;$("workspace").scrollTop=0;
+ progress.hidden=true;
+ $("csharpImportPage").hidden=true;
+ status("Imported "+nodes.length+" nodes · "+recognized+" converted · "+rawCount+" preserved · connections checked 10 times");
+ $("diagnostics").innerHTML='<div class="status-good">✓ Imported '+orderedMethods.length+' methods in stages. Connections were validated 10 times.</div>'+(rawCount?'<div class="warning">⚠ '+rawCount+' statement(s) remain as editable C# Code nodes so their code is not discarded.</div>':'')+(check.removed?'<div class="warning">⚠ '+check.removed+' invalid or duplicate connection(s) were removed.</div>':'<div class="status-good">✓ All imported connections passed validation.</div>');
 }
 
 function defaultNodePosition(){
