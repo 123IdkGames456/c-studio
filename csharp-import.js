@@ -28,7 +28,7 @@ window.CSharpImporter = (() => {
    else if(c==="[")square++;else if(c==="]")square--;
    else if(c==="{")brace++;else if(c==="}")brace--;
    if(c===";"&&round===0&&square===0&&brace===0){const part=clean(body.slice(start,i+1));if(part)out.push(part);start=i+1}
-   else if(c==="}"&&round===0&&square===0&&brace===0){let look=i+1;while(/\s/.test(body[look]||""))look++;if(!/^(else|catch|finally)\b/.test(body.slice(look))){const part=clean(body.slice(start,i+1));if(part)out.push(part);start=i+1}}
+   else if(c==="}"&&round===0&&square===0&&brace===0){let look=i+1;while(/\s/.test(body[look]||""))look++;if(!/^(else|catch|finally|while)\b/.test(body.slice(look))){const part=clean(body.slice(start,i+1));if(part)out.push(part);start=i+1}}
   }
   const tail=clean(body.slice(start));if(tail)out.push(tail);
   return out;
